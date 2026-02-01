@@ -312,7 +312,7 @@ export default function SetupFlow({ onRequestMain }: SetupFlowProps) {
     [activeSection]
   );
 
-  const scrollToSection = useCallback((ref: RefObject<HTMLDivElement>) => {
+  const scrollToSection = useCallback((ref: RefObject<HTMLDivElement | null>) => {
     ref.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
   }, []);
 
