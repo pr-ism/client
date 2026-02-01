@@ -1,6 +1,6 @@
 'use client';
 
-import { useCallback, useEffect, useState } from 'react';
+import { Suspense, useCallback, useEffect, useState } from 'react';
 import { useSearchParams } from 'next/navigation';
 import SetupFlow from '../components/SetupFlow';
 
@@ -42,6 +42,14 @@ const modalContentClass = (open: boolean) =>
   ].join(' ');
 
 export default function HomePage() {
+  return (
+    <Suspense>
+      <HomePageContent />
+    </Suspense>
+  );
+}
+
+function HomePageContent() {
   const searchParams = useSearchParams();
   const [isModalOpen, setModalOpen] = useState(false);
   const [isMounted, setMounted] = useState(false);
