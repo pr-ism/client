@@ -1,6 +1,7 @@
 'use client';
 
 import { useCallback, useEffect, useState } from 'react';
+import { useSearchParams } from 'next/navigation';
 import SetupFlow from '../components/SetupFlow';
 
 const featureItems = [
@@ -41,15 +42,27 @@ const modalContentClass = (open: boolean) =>
   ].join(' ');
 
 export default function HomePage() {
+  const searchParams = useSearchParams();
   const [isModalOpen, setModalOpen] = useState(false);
   const [isMounted, setMounted] = useState(false);
   const [showSetup, setShowSetup] = useState(false);
+  const [sessionExpiredToast, setSessionExpiredToast] = useState(false);
   // 초기값을 false로 설정하여 로딩 전에는 무조건 숨김
   const [isReady, setIsReady] = useState(false);
 
   useEffect(() => {
     setMounted(true);
 
+    // 세션 만료 토스트
+    if (searchParams.get('session_expired') === 'true') {
+      setSessionExpiredToast(true);
+      window.history.replaceState({}, '', '/');
+      const toastTimer = setTimeout(() => setSessionExpiredToast(false), 5000);
+      return () => clearTimeout(toastTimer);
+    }
+  }, [searchParams]);
+
+  useEffect(() => {
     // 쿠키 체크 및 초기화 로직
     const match = document.cookie
       .split(';')
@@ -402,6 +415,34 @@ export default function HomePage() {
           <SetupFlow onRequestMain={closeSetup} />
         </div>
       )}
+
+      {/* Session Expired Toast */}
+      <div
+        className={[
+          'fixed bottom-6 right-6 z-50 flex items-center gap-3 bg-white border border-rose-200 shadow-lg rounded-xl px-5 py-4 transition-all duration-300',
+          sessionExpiredToast
+            ? 'opacity-100 translate-y-0'
+            : 'opacity-0 translate-y-4 pointer-events-none',
+        ].join(' ')}
+      >
+        <div className="w-8 h-8 bg-rose-100 rounded-full flex items-center justify-center flex-shrink-0">
+          <svg className="w-4 h-4 text-rose-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 9v2m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+          </svg>
+        </div>
+        <div>
+          <p className="text-sm font-semibold text-slate-800">세션이 만료되었습니다</p>
+          <p className="text-xs text-slate-500">다시 로그인해 주세요.</p>
+        </div>
+        <button
+          onClick={() => setSessionExpiredToast(false)}
+          className="ml-2 text-slate-400 hover:text-slate-600 transition-colors"
+        >
+          <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M6 18L18 6M6 6l12 12" />
+          </svg>
+        </button>
+      </div>
     </div>
   );
 }

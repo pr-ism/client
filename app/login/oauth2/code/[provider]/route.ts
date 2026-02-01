@@ -62,7 +62,7 @@ export async function GET(
   }
 
   const bodyText = await backendResponse.text();
-  let body: { authorization?: string; accessToken?: string } | null = null;
+  let body: { authorization?: string; accessToken?: string; signUp?: boolean } | null = null;
 
   if (bodyText) {
     try {
@@ -72,13 +72,18 @@ export async function GET(
     }
   }
 
-  const redirectUrl = new URL(SETUP_PATH, req.url);
+  const isSignUp = body?.signUp === true;
+  const redirectPath = isSignUp ? SETUP_PATH : '/projects';
+  const redirectUrl = new URL(redirectPath, req.url);
   const response = NextResponse.redirect(redirectUrl);
-  response.cookies.set('prism_show_setup', '1', {
-    path: '/',
-    maxAge: 60,
-    sameSite: 'lax'
-  });
+
+  if (isSignUp) {
+    response.cookies.set('prism_show_setup', '1', {
+      path: '/',
+      maxAge: 60,
+      sameSite: 'lax'
+    });
+  }
 
   backendResponse.headers.forEach((value, name) => {
     if (name.toLowerCase() === 'set-cookie') {

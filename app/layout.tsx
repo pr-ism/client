@@ -22,7 +22,10 @@ const tailwindConfig = {
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
     <html lang="ko">
-      <head />
+      <head>
+
+        <style dangerouslySetInnerHTML={{ __html: `body:not(.tw-ready){opacity:0!important}body.tw-ready{opacity:1;transition:opacity .15s ease-in}` }} />
+      </head>
       <body className="bg-[#EEF2FF] text-slate-800 min-h-screen flex flex-col font-pretendard">
         <Script
           id="tailwind-config"
@@ -36,10 +39,19 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
         />
         <Script src="https://cdn.tailwindcss.com" strategy="beforeInteractive" />
         <Script
-          id="tailwind-error-guard"
+          id="tailwind-ready"
           strategy="afterInteractive"
           dangerouslySetInnerHTML={{
             __html: `
+              (function waitForTailwind(){
+                var styles=document.querySelectorAll('style');
+                for(var i=0;i<styles.length;i++){
+                  if(styles[i].textContent&&styles[i].textContent.indexOf('--tw-')!==-1){
+                    document.body.classList.add('tw-ready');return;
+                  }
+                }
+                requestAnimationFrame(waitForTailwind);
+              })();
               window.addEventListener(
                 'error',
                 function (event) {
@@ -54,6 +66,8 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
                 },
                 true
               );
+              // 안전장치: 2초 후에도 감지 못하면 강제 표시
+              setTimeout(function(){document.body.classList.add('tw-ready')},2000);
             `
           }}
         />
