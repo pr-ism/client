@@ -348,9 +348,9 @@ function HomePageContent() {
                   </div>
                   <div className="text-[15px] leading-relaxed text-slate-900 mb-1">
                     🚀 <span className="font-bold">New PR:</span>{' '}
-                    <a className="text-[#1264a3] hover:underline font-semibold" href="#">
+                    <span className="text-[#1264a3] hover:underline font-semibold cursor-pointer">
                       Refactor user authentication logic (#1024)
-                    </a>
+                    </span>
                   </div>
                   <div className="mt-2 flex">
                     <div className="w-1 bg-[#6366F1] rounded-l-sm mr-3 flex-shrink-0"></div>
