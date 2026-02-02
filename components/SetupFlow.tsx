@@ -3,22 +3,15 @@
 import { useCallback, useEffect, useRef, useState, type MouseEvent, type RefObject } from 'react';
 // removed next/navigation import to fix compilation error
 
-const githubCode = `name: PR-ism Notification
-on:
-  pull_request:
-    types: [opened, reopened, ready_for_review]
+type GithubTab = 'all' | 'notify' | 'pr-opened' | 'review-requested';
 
-jobs:
-  notify:
-    runs-on: ubuntu-latest
-    steps:
-      - name: Send PR Notification
-        uses: pr-ism/action@v1
-        with:
-          api-key: \${{ secrets.PRISM_API_KEY }}
-          pr-url: \${{ github.event.pull_request.html_url }}
-          author: \${{ github.event.pull_request.user.login }}
-          reviewers: \${{ join(github.event.pull_request.requested_reviewers.*.login, ',') }}`;
+const githubTabs: { key: GithubTab; label: string; description: string; filename: string; src: string }[] = [
+  { key: 'all', label: '통합', description: '모든 기능을 하나의 워크플로우 파일로 통합한 버전입니다.', filename: 'prism.yml', src: '/workflows/prism.yml' },
+  { key: 'notify', label: 'Slack 알림', description: 'PR 리뷰 요청 시 Slack 채널로 알림을 보냅니다.', filename: 'prism-notify.yml', src: '/workflows/prism-notify.yml' },
+  { key: 'pr-opened', label: 'PR 수집', description: 'PR 생성 이벤트의 메타데이터를 수집하여 통계에 활용합니다.', filename: 'prism-pr-opened.yml', src: '/workflows/prism-pr-opened.yml' },
+  { key: 'review-requested', label: '리뷰 수집', description: '리뷰 요청 이벤트의 메타데이터를 수집하여 통계에 활용합니다.', filename: 'prism-review-requested.yml', src: '/workflows/prism-review-requested.yml' },
+];
+
 
 const copyText = async (text: string) => {
   if (navigator.clipboard && navigator.clipboard.writeText) {
@@ -81,11 +74,28 @@ export default function SetupFlow({ onRequestMain }: SetupFlowProps) {
   const [slackErrorMessage, setSlackErrorMessage] = useState('');
 
   const [isReady, setIsReady] = useState(false);
+  const [githubTab, setGithubTab] = useState<GithubTab>('all');
+  const [workflowScripts, setWorkflowScripts] = useState<Record<string, string>>({});
 
   const projectRef = useRef<HTMLDivElement>(null);
   const slackRef = useRef<HTMLDivElement>(null);
   const githubRef = useRef<HTMLDivElement>(null);
   const slackCallbackKeyRef = useRef<string | null>(null);
+
+  // 0. YML 파일 로드
+  useEffect(() => {
+    Promise.all(
+      githubTabs.map((t) =>
+        fetch(t.src).then((r) => r.ok ? r.text() : '').then((text) => [t.key, text.trimEnd()] as const)
+      )
+    ).then((entries) => {
+      const scripts: Record<string, string> = {};
+      for (const [key, text] of entries) {
+        scripts[key] = text;
+      }
+      setWorkflowScripts(scripts);
+    });
+  }, []);
 
   // 1. 초기 렌더링 및 토큰 로드
   useEffect(() => {
@@ -295,10 +305,15 @@ export default function SetupFlow({ onRequestMain }: SetupFlowProps) {
     setInviteCopyMessage(success ? '복사되었습니다!' : '복사에 실패했습니다.');
   }, []);
 
+  const currentGithubCode = workflowScripts[githubTab] ?? '로딩 중...';
+  const currentTabInfo = githubTabs.find((t) => t.key === githubTab)!;
+
   const handleCopyGithubCode = useCallback(async () => {
-    const success = await copyText(githubCode);
+    const code = workflowScripts[githubTab] ?? '';
+    if (!code) return;
+    const success = await copyText(code);
     alert(success ? 'Github Actions 스크립트가 복사되었습니다!' : '복사에 실패했습니다.');
-  }, []);
+  }, [githubTab, workflowScripts]);
 
   const sectionClass = useCallback(
     (name: SetupSection) => {
@@ -338,7 +353,7 @@ export default function SetupFlow({ onRequestMain }: SetupFlowProps) {
       }}
     >
       <nav className="w-full px-8 py-6 flex justify-between items-center max-w-4xl mx-auto">
-        <div className="font-bold text-xl text-indigo-900 tracking-tight flex items-center gap-2">
+        <a href="/" className="font-bold text-xl text-indigo-900 tracking-tight flex items-center gap-2 no-underline cursor-pointer">
           <svg width="24" height="24" viewBox="0 0 300 300" fill="none">
             <path
               d="M150 40 L150 260 L250 140 Z"
@@ -356,11 +371,11 @@ export default function SetupFlow({ onRequestMain }: SetupFlowProps) {
             />
           </svg>
           PR-ism
-        </div>
+        </a>
         <div className="text-sm text-slate-500 font-medium">초기 설정 가이드</div>
       </nav>
 
-      <main className="flex-grow w-full max-w-3xl mx-auto px-6 py-8 pb-32 space-y-8">
+      <main className="flex-grow w-full max-w-4xl mx-auto px-6 py-8 pb-32 space-y-8">
         <div className="text-center mb-10">
           <h1 className="text-3xl font-bold text-slate-900 mb-2">시작하기</h1>
           <p className="text-slate-600">PR-ism을 사용하기 위해 프로젝트를 생성하고 연동을 완료해주세요.</p>
@@ -383,26 +398,21 @@ export default function SetupFlow({ onRequestMain }: SetupFlowProps) {
           </div>
 
           <div className="space-y-8 pl-0 md:pl-14">
-            <div className="max-w-lg">
+            <div>
               <h3 className="font-bold text-slate-800 mb-3 flex items-center gap-2">
                 <span className="w-1.5 h-1.5 rounded-full bg-indigo-500" />
                 프로젝트 별칭 (Alias) 입력
               </h3>
-              <div className="flex gap-3 items-start">
-                <div className="flex-1">
-                  <input
-                    value={alias}
-                    onChange={(event) => setAlias(event.target.value)}
-                    type="text"
-                    id="project-input"
-                    placeholder="예: Backend-Core, App-iOS"
-                    className="w-full bg-white border border-slate-300 text-slate-900 text-sm rounded-lg focus:ring-indigo-500 focus:border-indigo-500 block p-3 shadow-sm disabled:bg-slate-200 disabled:text-slate-500 disabled:border-slate-300 transition-colors"
-                    disabled={isCreating || projectCreated}
-                  />
-                  {projectError && (
-                    <p className="text-sm text-red-600 mt-2">{projectError}</p>
-                  )}
-                </div>
+              <div className="flex gap-3 items-center">
+                <input
+                  value={alias}
+                  onChange={(event) => setAlias(event.target.value)}
+                  type="text"
+                  id="project-input"
+                  placeholder="예: Backend-Core, App-iOS"
+                  className="flex-1 bg-white border border-slate-300 text-slate-900 text-sm rounded-lg focus:ring-indigo-500 focus:border-indigo-500 block p-3 shadow-sm disabled:bg-slate-200 disabled:text-slate-500 disabled:border-slate-300 transition-colors"
+                  disabled={isCreating || projectCreated}
+                />
                 <button
                   id="btn-create"
                   type="button"
@@ -413,6 +423,9 @@ export default function SetupFlow({ onRequestMain }: SetupFlowProps) {
                   {isCreating ? '생성 중...' : projectCreated ? '완료' : '생성'}
                 </button>
               </div>
+              {projectError && (
+                <p className="text-sm text-red-600 mt-2">{projectError}</p>
+              )}
 
               {projectCreated && (
                 <div className="mt-4 p-4 bg-green-50 border border-green-100 rounded-lg flex items-center gap-3">
@@ -434,7 +447,7 @@ export default function SetupFlow({ onRequestMain }: SetupFlowProps) {
                     <span className="w-1.5 h-1.5 rounded-full bg-indigo-500" />
                     API Key 발급
                   </h3>
-                  <div className="relative flex items-center max-w-lg">
+                  <div className="relative flex items-center">
                     <input
                       type="text"
                       id="generated-api-key"
@@ -572,10 +585,10 @@ export default function SetupFlow({ onRequestMain }: SetupFlowProps) {
                 <span className="w-1.5 h-1.5 rounded-full bg-indigo-500" />
                 채널에 봇 초대하기
               </h3>
-              <div className="flex flex-col gap-3 max-w-lg mb-3">
+              <div className="flex flex-col gap-3 mb-3">
                 <p className="text-sm text-slate-600">알림을 받고 싶은 채널에서 아래 명령어를 입력하세요.</p>
                 <div
-                  className="border border-slate-300 rounded-lg bg-white shadow-sm max-w-lg overflow-hidden group cursor-text"
+                  className="border border-slate-300 rounded-lg bg-white shadow-sm overflow-hidden group cursor-text"
                   onClick={handleCopyInviteCommand}
                 >
                   <div className="px-3 pt-3 pb-8 text-[15px] font-sans text-slate-900">
@@ -605,7 +618,7 @@ export default function SetupFlow({ onRequestMain }: SetupFlowProps) {
               <p className="text-sm text-slate-600 mb-3">
                 팀원들이 각자 슬랙에서 아래 명령어를 입력하여 Github 계정을 연동할 수 있도록 안내해주세요.
               </p>
-              <div className="bg-white border border-slate-200 rounded-lg p-4 shadow-sm max-w-lg">
+              <div className="bg-white border border-slate-200 rounded-lg p-4 shadow-sm">
                 <div className="flex items-start gap-3">
                   <div className="w-9 h-9 bg-indigo-100 rounded-[4px] flex-shrink-0 flex items-center justify-center">
                     <svg width="24" height="24" viewBox="0 0 300 300" fill="none">
@@ -685,26 +698,53 @@ export default function SetupFlow({ onRequestMain }: SetupFlowProps) {
           <div className="space-y-6 pl-0 md:pl-14">
             <p className="text-slate-600 leading-relaxed">
               프로젝트의{' '}
-              <code className="text-sm bg-slate-100 px-1.5 py-0.5 rounded text-indigo-700 font-mono">.github/workflows/prism.yml</code>{' '}
+              <code className="text-sm bg-slate-100 px-1.5 py-0.5 rounded text-indigo-700 font-mono">.github/workflows/{currentTabInfo.filename}</code>{' '}
               경로에 아래 내용을 추가하세요.
               <br />
               위에서 발급받은 API Key는 Github Secrets에{' '}
               <code className="text-sm bg-slate-100 px-1.5 py-0.5 rounded text-indigo-700 font-mono">PRISM_API_KEY</code>로 등록해야 합니다.
             </p>
 
-            <div className="relative group">
-              <div className="absolute top-3 right-3 opacity-100 sm:opacity-0 sm:group-hover:opacity-100 transition-opacity z-10">
-                <button
-                  type="button"
-                  onClick={handleCopyGithubCode}
-                  className="bg-white/10 hover:bg-white/20 backdrop-blur-md text-white border border-white/20 px-3 py-1.5 rounded text-xs font-medium flex items-center gap-1.5 transition-colors cursor-pointer"
-                >
-                  Copy Code
-                </button>
+            <div>
+              <div className="flex flex-wrap gap-1 mb-0">
+                {githubTabs.map((tab) => (
+                  <button
+                    key={tab.key}
+                    type="button"
+                    onClick={() => setGithubTab(tab.key)}
+                    className={[
+                      'px-4 py-2 text-sm font-medium rounded-t-lg transition-colors relative',
+                      githubTab === tab.key
+                        ? 'bg-[#1E293B] text-white'
+                        : 'bg-slate-100 text-slate-500 hover:bg-slate-200 hover:text-slate-700',
+                    ].join(' ')}
+                  >
+                    {tab.label}
+                    {tab.key === 'all' && (
+                      <span className="ml-1.5 text-[10px] bg-indigo-500 text-white px-1.5 py-0.5 rounded-full font-bold align-middle">
+                        ALL
+                      </span>
+                    )}
+                  </button>
+                ))}
               </div>
-              <pre className="bg-[#1E293B] text-slate-300 p-5 rounded-xl overflow-x-auto text-sm leading-relaxed shadow-inner code-block border border-slate-700">
-                <code id="github-code">{githubCode}</code>
-              </pre>
+              <p className="text-xs text-slate-500 bg-slate-50 border border-slate-200 border-b-0 rounded-none px-4 py-2">
+                {currentTabInfo.description}
+              </p>
+              <div className="relative group">
+                <div className="absolute top-3 right-3 opacity-100 sm:opacity-0 sm:group-hover:opacity-100 transition-opacity z-10">
+                  <button
+                    type="button"
+                    onClick={handleCopyGithubCode}
+                    className="bg-white/10 hover:bg-white/20 backdrop-blur-md text-white border border-white/20 px-3 py-1.5 rounded text-xs font-medium flex items-center gap-1.5 transition-colors cursor-pointer"
+                  >
+                    Copy Code
+                  </button>
+                </div>
+                <pre className="bg-[#1E293B] text-slate-300 p-5 rounded-t-none rounded-b-xl overflow-x-auto text-sm leading-relaxed shadow-inner code-block border border-slate-700 border-t-0">
+                  <code>{currentGithubCode}</code>
+                </pre>
+              </div>
             </div>
 
             <div className="pt-6 border-t border-slate-100 flex flex-col md:flex-row justify-between items-center gap-4">

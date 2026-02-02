@@ -1,0 +1,6 @@
+<svg id="slack-icon-svg" width="180" height="180" viewBox="0 0 300 300" fill="none" xmlns="http://www.w3.org/2000/svg" class="relative z-10 drop-shadow-xl transition-transform duration-300 group-hover:scale-105">
+                <!-- Right Face -->
+                <path d="M150 40 L150 260 L250 140 Z" fill="#6366F1" stroke="#1E293B" stroke-width="15" stroke-linejoin="round"></path>
+                <!-- Left Face -->
+                <path d="M150 40 L50 180 L150 260 Z" fill="#FFFFFF" stroke="#1E293B" stroke-width="15" stroke-linejoin="round"></path>
+            </svg>

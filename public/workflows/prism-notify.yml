@@ -1,0 +1,51 @@
+name: Review Request Event Notification
+
+on:
+  pull_request:
+    types: [review_requested]
+
+permissions:
+  contents: read
+  pull-requests: read
+
+jobs:
+  notify-review-request:
+    name: 리뷰 요청 이벤트 알림 전송
+    runs-on: ubuntu-latest
+    steps:
+      - name: notify review request event
+        env:
+          REVIEW_EVENT_API_URL: https://slack.pr-ism.site
+          REVIEW_EVENT_API_KEY: ${{ secrets.REVIEW_EVENT_API_KEY }}
+          GH_TOKEN: ${{ github.token }}
+          OWNER: ${{ github.repository_owner }}
+          REPO: ${{ github.event.repository.name }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+          PR_TITLE: ${{ github.event.pull_request.title }}
+          PR_URL: ${{ github.event.pull_request.html_url }}
+          PR_AUTHOR: ${{ github.event.pull_request.user.login }}
+        run: |
+          set -euo pipefail
+
+          REQUESTED_JSON="$(gh api "repos/${OWNER}/${REPO}/pulls/${PR_NUMBER}/requested_reviewers" || echo '{"users":[],"teams":[]}')"
+          REVIEWS_JSON="$(gh api --paginate "repos/${OWNER}/${REPO}/pulls/${PR_NUMBER}/reviews" || echo '[]')"
+
+          pending_json="$(echo "$REQUESTED_JSON" | jq -r --arg author "$PR_AUTHOR" '[.users[].login? | select(. != $author)]')"
+          reviewed_json="$(echo "$REVIEWS_JSON" | jq -r --arg author "$PR_AUTHOR" '[.[].user.login? | select(. != $author)] | sort | unique')"
+
+          payload="$(jq -n \
+            --arg repo "$REPO" \
+            --arg pr_id "PR-${PR_NUMBER}" \
+            --arg pr_number "$PR_NUMBER" \
+            --arg pr_title "$PR_TITLE" \
+            --arg pr_url "$PR_URL" \
+            --arg author "$PR_AUTHOR" \
+            --argjson pending "$pending_json" \
+            --argjson reviewed "$reviewed_json" \
+            '{repositoryName:$repo,pullRequestId:$pr_id,pullRequestNumber:($pr_number|tonumber),pullRequestTitle:$pr_title,pullRequestUrl:$pr_url,authorGithubId:$author,pendingReviewers:$pending,reviewedReviewers:$reviewed}')"
+
+          BASE_URL="${REVIEW_EVENT_API_URL%/}"
+          curl -sS -X POST "${BASE_URL}/events/review-request" \
+            -H "Content-Type: application/json" \
+            -H "X-API-Key: ${REVIEW_EVENT_API_KEY}" \
+            -d "$payload"

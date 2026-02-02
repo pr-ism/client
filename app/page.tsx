@@ -61,6 +61,12 @@ function HomePageContent() {
   useEffect(() => {
     setMounted(true);
 
+    // 로그인 필요 시 모달 자동 오픈
+    if (searchParams.get('requires_login') === 'true') {
+      setModalOpen(true);
+      window.history.replaceState({}, '', '/');
+    }
+
     // 세션 만료 토스트
     if (searchParams.get('session_expired') === 'true') {
       setSessionExpiredToast(true);
@@ -126,6 +132,17 @@ function HomePageContent() {
       };
     }
   }, [showSetup]);
+
+  const handleAddToSlack = useCallback(() => {
+    const hasToken = document.cookie
+      .split(';')
+      .some((c) => c.trim().startsWith('prism_access_token='));
+    if (hasToken) {
+      window.location.href = '/setup';
+    } else {
+      openModal();
+    }
+  }, [openModal]);
 
   const handleSocialLogin = useCallback((provider: 'kakao' | 'google') => {
     const url = `/oauth2/authorization/${provider}`;
@@ -237,8 +254,9 @@ function HomePageContent() {
             알림부터 인사이트까지 PR-ism으로 끝내세요.
           </p>
           <div className="mt-10 flex flex-col sm:flex-row gap-4 justify-center">
-            <a
-              href={process.env.NEXT_PUBLIC_SLACK_BOT_URL ?? '#'}
+            <button
+              type="button"
+              onClick={handleAddToSlack}
               className="bg-indigo-600 hover:bg-indigo-700 text-white font-bold py-3 px-8 rounded-full shadow-lg shadow-indigo-200 transition-all transform hover:-translate-y-1 flex items-center justify-center gap-2"
             >
               <img
@@ -247,13 +265,14 @@ function HomePageContent() {
                 className="w-5 h-5 brightness-0 invert"
               />
               Add to Slack
-            </a>
-            <a
-              href="#features"
+            </button>
+            <button
+              type="button"
+              onClick={() => document.getElementById('features')?.scrollIntoView({ behavior: 'smooth' })}
               className="bg-white hover:bg-indigo-50 text-indigo-700 border border-indigo-200 font-semibold py-3 px-8 rounded-full shadow-sm transition-colors flex items-center justify-center"
             >
               Learn More
-            </a>
+            </button>
           </div>
         </div>
 

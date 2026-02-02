@@ -5,7 +5,7 @@ export const metadata = {
   title: 'PR-ism',
   description: 'PR-ism 초기 설정과 로그인 플로우',
   icons: {
-    icon: '/favicon.ico'
+    icon: '/icon.svg'
   }
 };
 

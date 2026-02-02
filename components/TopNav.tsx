@@ -27,7 +27,7 @@ export default function TopNav() {
     <nav className="w-full px-8 py-5 flex justify-between items-center max-w-7xl mx-auto">
       <div
         className="font-bold text-xl text-indigo-900 tracking-tight flex items-center gap-2 cursor-pointer"
-        onClick={() => router.push('/projects')}
+        onClick={() => router.push('/')}
       >
         <svg width="24" height="24" viewBox="0 0 300 300" fill="none">
           <path d="M150 40 L150 260 L250 140 Z" fill="#6366F1" stroke="#1E293B" strokeWidth="20" strokeLinejoin="round" />

@@ -1,0 +1,19 @@
+name: PR-ism PR Opened Metrics
+on:
+  pull_request:
+    types: [opened, reopened, ready_for_review]
+
+jobs:
+  collect-pr-opened:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Collect PR Opened Metadata
+        uses: pr-ism/action-collect@v1
+        with:
+          api-key: ${{ secrets.PRISM_API_KEY }}
+          event-type: pr_opened
+          pr-url: ${{ github.event.pull_request.html_url }}
+          author: ${{ github.event.pull_request.user.login }}
+          base-branch: ${{ github.event.pull_request.base.ref }}
+          head-branch: ${{ github.event.pull_request.head.ref }}
+          created-at: ${{ github.event.pull_request.created_at }}
