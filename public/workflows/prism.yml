@@ -1,84 +1,281 @@
-name: PR-ism
+name: PR-ism All-in-One
 
 on:
   pull_request:
-    types: [opened, reopened, ready_for_review, review_requested]
+    types: [opened, review_requested, review_request_removed, labeled, unlabeled]
+  pull_request_review:
+    types: [submitted]
+  pull_request_review_comment:
+    types: [created, edited]
 
-permissions:
-  contents: read
-  pull-requests: read
+env:
+  WEBHOOK_URL: "https://stats.pr-ism.site"
 
 jobs:
-  notify-review-request:
-    if: github.event.action == 'review_requested'
-    name: 리뷰 요청 이벤트 알림 전송
-    runs-on: ubuntu-latest
-    steps:
-      - name: notify review request event
-        env:
-          REVIEW_EVENT_API_URL: https://slack.pr-ism.site
-          REVIEW_EVENT_API_KEY: ${{ secrets.REVIEW_EVENT_API_KEY }}
-          GH_TOKEN: ${{ github.token }}
-          OWNER: ${{ github.repository_owner }}
-          REPO: ${{ github.event.repository.name }}
-          PR_NUMBER: ${{ github.event.pull_request.number }}
-          PR_TITLE: ${{ github.event.pull_request.title }}
-          PR_URL: ${{ github.event.pull_request.html_url }}
-          PR_AUTHOR: ${{ github.event.pull_request.user.login }}
-        run: |
-          set -euo pipefail
-
-          REQUESTED_JSON="$(gh api "repos/${OWNER}/${REPO}/pulls/${PR_NUMBER}/requested_reviewers" || echo '{"users":[],"teams":[]}')"
-          REVIEWS_JSON="$(gh api --paginate "repos/${OWNER}/${REPO}/pulls/${PR_NUMBER}/reviews" || echo '[]')"
-
-          pending_json="$(echo "$REQUESTED_JSON" | jq -r --arg author "$PR_AUTHOR" '[.users[].login? | select(. != $author)]')"
-          reviewed_json="$(echo "$REVIEWS_JSON" | jq -r --arg author "$PR_AUTHOR" '[.[].user.login? | select(. != $author)] | sort | unique')"
-
-          payload="$(jq -n \
-            --arg repo "$REPO" \
-            --arg pr_id "PR-${PR_NUMBER}" \
-            --arg pr_number "$PR_NUMBER" \
-            --arg pr_title "$PR_TITLE" \
-            --arg pr_url "$PR_URL" \
-            --arg author "$PR_AUTHOR" \
-            --argjson pending "$pending_json" \
-            --argjson reviewed "$reviewed_json" \
-            '{repositoryName:$repo,pullRequestId:$pr_id,pullRequestNumber:($pr_number|tonumber),pullRequestTitle:$pr_title,pullRequestUrl:$pr_url,authorGithubId:$author,pendingReviewers:$pending,reviewedReviewers:$reviewed}')"
-
-          BASE_URL="${REVIEW_EVENT_API_URL%/}"
-          curl -sS -X POST "${BASE_URL}/events/review-request" \
-            -H "Content-Type: application/json" \
-            -H "X-API-Key: ${REVIEW_EVENT_API_KEY}" \
-            -d "$payload"
-
   collect-pr-opened:
-    if: >-
-      github.event.action == 'opened' ||
-      github.event.action == 'reopened' ||
-      github.event.action == 'ready_for_review'
+    if: github.event.action == 'opened'
     runs-on: ubuntu-latest
     steps:
-      - name: Collect PR Opened Metadata
-        uses: pr-ism/action-collect@v1
-        with:
-          api-key: ${{ secrets.PRISM_API_KEY }}
-          event-type: pr_opened
-          pr-url: ${{ github.event.pull_request.html_url }}
-          author: ${{ github.event.pull_request.user.login }}
-          base-branch: ${{ github.event.pull_request.base.ref }}
-          head-branch: ${{ github.event.pull_request.head.ref }}
-          created-at: ${{ github.event.pull_request.created_at }}
+      - name: Handle opened event
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          PR_DATA=$(gh api graphql -f query='
+            query($owner: String!, $repo: String!, $number: Int!) {
+              repository(owner: $owner, name: $repo) {
+                pullRequest(number: $number) {
+                  number
+                  title
+                  url
+                  additions
+                  deletions
+                  changedFiles
+                  createdAt
+                  author { login }
+                  commits(first: 100) {
+                    totalCount
+                    nodes {
+                      commit {
+                        oid
+                        committedDate
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          ' -f owner='${{ github.repository_owner }}' \
+            -f repo='${{ github.event.repository.name }}' \
+            -F number=${{ github.event.pull_request.number }})
 
-  collect-review-requested:
-    if: github.event.action == 'review_requested'
+          FILES_DATA=$(gh api \
+            "repos/${{ github.repository }}/pulls/${{ github.event.pull_request.number }}/files" \
+            --jq '[.[] | {filename, status, additions, deletions}]')
+
+          PAYLOAD=$(jq -n \
+            --argjson prData "$PR_DATA" \
+            --argjson files "$FILES_DATA" \
+            --argjson isDraft "${{ github.event.pull_request.draft }}" \
+            '{
+              isDraft: $isDraft,
+              pullRequest: $prData.data.repository.pullRequest,
+              files: $files
+            }')
+
+          if [ -n "$WEBHOOK_URL" ]; then
+            curl -X POST \
+              -H "Content-Type: application/json" \
+              -H "X-API-Key: ${{ secrets.PRISM_API_KEY }}" \
+              -d "$PAYLOAD" "$WEBHOOK_URL/pull-request/opened" --fail --silent --show-error
+          fi
+
+  collect-reviewer:
+    if: github.event.action == 'review_requested' || github.event.action == 'review_request_removed'
     runs-on: ubuntu-latest
     steps:
-      - name: Collect Review Requested Metadata
-        uses: pr-ism/action-collect@v1
-        with:
-          api-key: ${{ secrets.PRISM_API_KEY }}
-          event-type: review_requested
-          pr-url: ${{ github.event.pull_request.html_url }}
-          author: ${{ github.event.pull_request.user.login }}
-          reviewers: ${{ join(github.event.pull_request.requested_reviewers.*.login, ',') }}
-          requested-at: ${{ github.event.action }}
+      - name: Handle review_requested event
+        if: github.event.action == 'review_requested'
+        run: |
+          PAYLOAD=$(jq -n \
+            --argjson pullRequestNumber "${{ github.event.pull_request.number }}" \
+            --arg login "${{ github.event.requested_reviewer.login }}" \
+            --argjson id "${{ github.event.requested_reviewer.id }}" \
+            --arg requestedAt "$(date -u +%Y-%m-%dT%H:%M:%SZ)" \
+            '{
+              pullRequestNumber: $pullRequestNumber,
+              reviewer: {
+                login: $login,
+                id: $id
+              },
+              requestedAt: $requestedAt
+            }')
+
+          if [ -n "$WEBHOOK_URL" ]; then
+            curl -X POST \
+              -H "Content-Type: application/json" \
+              -H "X-API-Key: ${{ secrets.PRISM_API_KEY }}" \
+              -d "$PAYLOAD" "$WEBHOOK_URL/reviewer/added" --fail --silent --show-error
+          fi
+
+      - name: Handle review_request_removed event
+        if: github.event.action == 'review_request_removed'
+        run: |
+          PAYLOAD=$(jq -n \
+            --argjson pullRequestNumber "${{ github.event.pull_request.number }}" \
+            --arg login "${{ github.event.requested_reviewer.login }}" \
+            --argjson id "${{ github.event.requested_reviewer.id }}" \
+            --arg removedAt "$(date -u +%Y-%m-%dT%H:%M:%SZ)" \
+            '{
+              pullRequestNumber: $pullRequestNumber,
+              reviewer: {
+                login: $login,
+                id: $id
+              },
+              removedAt: $removedAt
+            }')
+
+          if [ -n "$WEBHOOK_URL" ]; then
+            curl -X POST \
+              -H "Content-Type: application/json" \
+              -H "X-API-Key: ${{ secrets.PRISM_API_KEY }}" \
+              -d "$PAYLOAD" "$WEBHOOK_URL/reviewer/removed" --fail --silent --show-error
+          fi
+
+  collect-pr-label:
+    if: github.event.action == 'labeled' || github.event.action == 'unlabeled'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Handle labeled event
+        if: github.event.action == 'labeled'
+        run: |
+          PAYLOAD=$(jq -n \
+            --argjson pullRequestNumber "${{ github.event.pull_request.number }}" \
+            --arg labelName "${{ github.event.label.name }}" \
+            --arg labeledAt "$(date -u +%Y-%m-%dT%H:%M:%SZ)" \
+            '{
+              pullRequestNumber: $pullRequestNumber,
+              label: {
+                name: $labelName
+              },
+              labeledAt: $labeledAt
+            }')
+
+          if [ -n "$WEBHOOK_URL" ]; then
+            curl -X POST \
+              -H "Content-Type: application/json" \
+              -H "X-API-Key: ${{ secrets.PRISM_API_KEY }}" \
+              -d "$PAYLOAD" "$WEBHOOK_URL/pull-request/label/added" --fail --silent --show-error
+          fi
+
+      - name: Handle unlabeled event
+        if: github.event.action == 'unlabeled'
+        run: |
+          PAYLOAD=$(jq -n \
+            --argjson pullRequestNumber "${{ github.event.pull_request.number }}" \
+            --arg labelName "${{ github.event.label.name }}" \
+            --arg unlabeledAt "$(date -u +%Y-%m-%dT%H:%M:%SZ)" \
+            '{
+              pullRequestNumber: $pullRequestNumber,
+              label: {
+                name: $labelName
+              },
+              unlabeledAt: $unlabeledAt
+            }')
+
+          if [ -n "$WEBHOOK_URL" ]; then
+            curl -X POST \
+              -H "Content-Type: application/json" \
+              -H "X-API-Key: ${{ secrets.PRISM_API_KEY }}" \
+              -d "$PAYLOAD" "$WEBHOOK_URL/pull-request/label/removed" --fail --silent --show-error
+          fi
+
+  collect-review-submitted:
+    if: github.event_name == 'pull_request_review' && github.event.action == 'submitted'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Handle review submitted event
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          COMMENT_COUNT=$(gh api \
+            "repos/${{ github.repository }}/pulls/${{ github.event.pull_request.number }}/reviews/${{ github.event.review.id }}/comments" \
+            --jq 'length')
+
+          PAYLOAD=$(jq -n \
+            --argjson githubPullRequestId "${{ github.event.pull_request.id }}" \
+            --argjson pullRequestNumber "${{ github.event.pull_request.number }}" \
+            --argjson githubReviewId "${{ github.event.review.id }}" \
+            --arg reviewerLogin "${{ github.event.review.user.login }}" \
+            --argjson reviewerId "${{ github.event.review.user.id }}" \
+            --arg state "${{ github.event.review.state }}" \
+            --arg commitSha "${{ github.event.review.commit_id }}" \
+            --arg body "${{ github.event.review.body }}" \
+            --argjson commentCount "$COMMENT_COUNT" \
+            --arg submittedAt "${{ github.event.review.submitted_at }}" \
+            '{
+              githubPullRequestId: $githubPullRequestId,
+              pullRequestNumber: $pullRequestNumber,
+              githubReviewId: $githubReviewId,
+              reviewer: {
+                login: $reviewerLogin,
+                id: $reviewerId
+              },
+              state: $state,
+              commitSha: $commitSha,
+              body: $body,
+              commentCount: $commentCount,
+              submittedAt: $submittedAt
+            }')
+
+          if [ -n "$WEBHOOK_URL" ]; then
+            curl -X POST \
+              -H "Content-Type: application/json" \
+              -H "X-API-Key: ${{ secrets.PRISM_API_KEY }}" \
+              -d "$PAYLOAD" "$WEBHOOK_URL/review/submitted" --fail --silent --show-error
+          fi
+
+  collect-review-comment:
+    if: github.event_name == 'pull_request_review_comment'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Handle review comment created event
+        if: github.event.action == 'created'
+        run: |
+          PAYLOAD=$(jq -n \
+            --argjson githubCommentId "${{ github.event.comment.id }}" \
+            --argjson githubReviewId "${{ github.event.comment.pull_request_review_id }}" \
+            --arg body "${{ github.event.comment.body }}" \
+            --arg path "${{ github.event.comment.path }}" \
+            --argjson line "${{ github.event.comment.line || 0 }}" \
+            --argjson startLine "${{ github.event.comment.start_line || 'null' }}" \
+            --arg side "${{ github.event.comment.side }}" \
+            --arg commitSha "${{ github.event.comment.commit_id }}" \
+            --argjson inReplyToId "${{ github.event.comment.in_reply_to_id || 'null' }}" \
+            --arg authorLogin "${{ github.event.comment.user.login }}" \
+            --argjson authorId "${{ github.event.comment.user.id }}" \
+            --arg createdAt "${{ github.event.comment.created_at }}" \
+            --arg updatedAt "${{ github.event.comment.updated_at }}" \
+            '{
+              githubCommentId: $githubCommentId,
+              githubReviewId: $githubReviewId,
+              body: $body,
+              path: $path,
+              line: $line,
+              startLine: $startLine,
+              side: $side,
+              commitSha: $commitSha,
+              inReplyToId: $inReplyToId,
+              author: {
+                login: $authorLogin,
+                id: $authorId
+              },
+              createdAt: $createdAt,
+              updatedAt: $updatedAt
+            }')
+
+          if [ -n "$WEBHOOK_URL" ]; then
+            curl -X POST \
+              -H "Content-Type: application/json" \
+              -H "X-API-Key: ${{ secrets.PRISM_API_KEY }}" \
+              -d "$PAYLOAD" "$WEBHOOK_URL/review-comment/created" --fail --silent --show-error
+          fi
+
+      - name: Handle review comment edited event
+        if: github.event.action == 'edited'
+        run: |
+          PAYLOAD=$(jq -n \
+            --argjson githubCommentId "${{ github.event.comment.id }}" \
+            --arg body "${{ github.event.comment.body }}" \
+            --arg updatedAt "${{ github.event.comment.updated_at }}" \
+            '{
+              githubCommentId: $githubCommentId,
+              body: $body,
+              updatedAt: $updatedAt
+            }')
+
+          if [ -n "$WEBHOOK_URL" ]; then
+            curl -X POST \
+              -H "Content-Type: application/json" \
+              -H "X-API-Key: ${{ secrets.PRISM_API_KEY }}" \
+              -d "$PAYLOAD" "$WEBHOOK_URL/review-comment/edited" --fail --silent --show-error
+          fi

@@ -1,0 +1,74 @@
+name: Review Comment Collector
+
+on:
+  pull_request_review_comment:
+    types: [created, edited]
+
+env:
+  WEBHOOK_URL: "https://stats.pr-ism.site"
+
+jobs:
+  collect-review-comment:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Handle review comment created event
+        if: github.event.action == 'created'
+        run: |
+          PAYLOAD=$(jq -n \
+            --argjson githubCommentId "${{ github.event.comment.id }}" \
+            --argjson githubReviewId "${{ github.event.comment.pull_request_review_id }}" \
+            --arg body "${{ github.event.comment.body }}" \
+            --arg path "${{ github.event.comment.path }}" \
+            --argjson line "${{ github.event.comment.line || 0 }}" \
+            --argjson startLine "${{ github.event.comment.start_line || 'null' }}" \
+            --arg side "${{ github.event.comment.side }}" \
+            --arg commitSha "${{ github.event.comment.commit_id }}" \
+            --argjson inReplyToId "${{ github.event.comment.in_reply_to_id || 'null' }}" \
+            --arg authorLogin "${{ github.event.comment.user.login }}" \
+            --argjson authorId "${{ github.event.comment.user.id }}" \
+            --arg createdAt "${{ github.event.comment.created_at }}" \
+            --arg updatedAt "${{ github.event.comment.updated_at }}" \
+            '{
+              githubCommentId: $githubCommentId,
+              githubReviewId: $githubReviewId,
+              body: $body,
+              path: $path,
+              line: $line,
+              startLine: $startLine,
+              side: $side,
+              commitSha: $commitSha,
+              inReplyToId: $inReplyToId,
+              author: {
+                login: $authorLogin,
+                id: $authorId
+              },
+              createdAt: $createdAt,
+              updatedAt: $updatedAt
+            }')
+
+          if [ -n "$WEBHOOK_URL" ]; then
+            curl -X POST \
+              -H "Content-Type: application/json" \
+              -H "X-API-Key: ${{ secrets.PRISM_API_KEY }}" \
+              -d "$PAYLOAD" "$WEBHOOK_URL/review-comment/created" --fail --silent --show-error
+          fi
+
+      - name: Handle review comment edited event
+        if: github.event.action == 'edited'
+        run: |
+          PAYLOAD=$(jq -n \
+            --argjson githubCommentId "${{ github.event.comment.id }}" \
+            --arg body "${{ github.event.comment.body }}" \
+            --arg updatedAt "${{ github.event.comment.updated_at }}" \
+            '{
+              githubCommentId: $githubCommentId,
+              body: $body,
+              updatedAt: $updatedAt
+            }')
+
+          if [ -n "$WEBHOOK_URL" ]; then
+            curl -X POST \
+              -H "Content-Type: application/json" \
+              -H "X-API-Key: ${{ secrets.PRISM_API_KEY }}" \
+              -d "$PAYLOAD" "$WEBHOOK_URL/review-comment/edited" --fail --silent --show-error
+          fi

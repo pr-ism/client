@@ -1,0 +1,56 @@
+name: PR Label Collector
+
+on:
+  pull_request:
+    types: [labeled, unlabeled]
+
+env:
+  WEBHOOK_URL: "https://stats.pr-ism.site"
+
+jobs:
+  collect-pr-label:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Handle labeled event
+        if: github.event.action == 'labeled'
+        run: |
+          PAYLOAD=$(jq -n \
+            --argjson pullRequestNumber "${{ github.event.pull_request.number }}" \
+            --arg labelName "${{ github.event.label.name }}" \
+            --arg labeledAt "$(date -u +%Y-%m-%dT%H:%M:%SZ)" \
+            '{
+              pullRequestNumber: $pullRequestNumber,
+              label: {
+                name: $labelName
+              },
+              labeledAt: $labeledAt
+            }')
+
+          if [ -n "$WEBHOOK_URL" ]; then
+            curl -X POST \
+              -H "Content-Type: application/json" \
+              -H "X-API-Key: ${{ secrets.PRISM_API_KEY }}" \
+              -d "$PAYLOAD" "$WEBHOOK_URL/pull-request/label/added" --fail --silent --show-error
+          fi
+
+      - name: Handle unlabeled event
+        if: github.event.action == 'unlabeled'
+        run: |
+          PAYLOAD=$(jq -n \
+            --argjson pullRequestNumber "${{ github.event.pull_request.number }}" \
+            --arg labelName "${{ github.event.label.name }}" \
+            --arg unlabeledAt "$(date -u +%Y-%m-%dT%H:%M:%SZ)" \
+            '{
+              pullRequestNumber: $pullRequestNumber,
+              label: {
+                name: $labelName
+              },
+              unlabeledAt: $unlabeledAt
+            }')
+
+          if [ -n "$WEBHOOK_URL" ]; then
+            curl -X POST \
+              -H "Content-Type: application/json" \
+              -H "X-API-Key: ${{ secrets.PRISM_API_KEY }}" \
+              -d "$PAYLOAD" "$WEBHOOK_URL/pull-request/label/removed" --fail --silent --show-error
+          fi

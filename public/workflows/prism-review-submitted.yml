@@ -1,0 +1,53 @@
+name: Review Submitted Collector
+
+on:
+  pull_request_review:
+    types: [submitted]
+
+env:
+  WEBHOOK_URL: "https://stats.pr-ism.site"
+
+jobs:
+  collect-review-submitted:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Handle review submitted event
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          COMMENT_COUNT=$(gh api \
+            "repos/${{ github.repository }}/pulls/${{ github.event.pull_request.number }}/reviews/${{ github.event.review.id }}/comments" \
+            --jq 'length')
+
+          PAYLOAD=$(jq -n \
+            --argjson githubPullRequestId "${{ github.event.pull_request.id }}" \
+            --argjson pullRequestNumber "${{ github.event.pull_request.number }}" \
+            --argjson githubReviewId "${{ github.event.review.id }}" \
+            --arg reviewerLogin "${{ github.event.review.user.login }}" \
+            --argjson reviewerId "${{ github.event.review.user.id }}" \
+            --arg state "${{ github.event.review.state }}" \
+            --arg commitSha "${{ github.event.review.commit_id }}" \
+            --arg body "${{ github.event.review.body }}" \
+            --argjson commentCount "$COMMENT_COUNT" \
+            --arg submittedAt "${{ github.event.review.submitted_at }}" \
+            '{
+              githubPullRequestId: $githubPullRequestId,
+              pullRequestNumber: $pullRequestNumber,
+              githubReviewId: $githubReviewId,
+              reviewer: {
+                login: $reviewerLogin,
+                id: $reviewerId
+              },
+              state: $state,
+              commitSha: $commitSha,
+              body: $body,
+              commentCount: $commentCount,
+              submittedAt: $submittedAt
+            }')
+
+          if [ -n "$WEBHOOK_URL" ]; then
+            curl -X POST \
+              -H "Content-Type: application/json" \
+              -H "X-API-Key: ${{ secrets.PRISM_API_KEY }}" \
+              -d "$PAYLOAD" "$WEBHOOK_URL/review/submitted" --fail --silent --show-error
+          fi

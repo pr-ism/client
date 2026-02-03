@@ -8,44 +8,51 @@ permissions:
   contents: read
   pull-requests: read
 
+env:
+  WEBHOOK_URL: "https://slack.pr-ism.site"
+
 jobs:
-  notify-review-request:
-    name: 리뷰 요청 이벤트 알림 전송
+  collect-review-request:
     runs-on: ubuntu-latest
     steps:
-      - name: notify review request event
+      - name: Handle review requested event
         env:
-          REVIEW_EVENT_API_URL: https://slack.pr-ism.site
-          REVIEW_EVENT_API_KEY: ${{ secrets.REVIEW_EVENT_API_KEY }}
-          GH_TOKEN: ${{ github.token }}
-          OWNER: ${{ github.repository_owner }}
-          REPO: ${{ github.event.repository.name }}
-          PR_NUMBER: ${{ github.event.pull_request.number }}
-          PR_TITLE: ${{ github.event.pull_request.title }}
-          PR_URL: ${{ github.event.pull_request.html_url }}
-          PR_AUTHOR: ${{ github.event.pull_request.user.login }}
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          set -euo pipefail
+          OWNER="${{ github.repository_owner }}"
+          REPO="${{ github.event.repository.name }}"
+          PR_NUMBER="${{ github.event.pull_request.number }}"
+          AUTHOR="${{ github.event.pull_request.user.login }}"
 
-          REQUESTED_JSON="$(gh api "repos/${OWNER}/${REPO}/pulls/${PR_NUMBER}/requested_reviewers" || echo '{"users":[],"teams":[]}')"
-          REVIEWS_JSON="$(gh api --paginate "repos/${OWNER}/${REPO}/pulls/${PR_NUMBER}/reviews" || echo '[]')"
+          PENDING_RAW=$(gh api "repos/$OWNER/$REPO/pulls/$PR_NUMBER/requested_reviewers" || echo '{"users":[],"teams":[]}')
+          REVIEWED_RAW=$(gh api --paginate "repos/$OWNER/$REPO/pulls/$PR_NUMBER/reviews" || echo '[]')
 
-          pending_json="$(echo "$REQUESTED_JSON" | jq -r --arg author "$PR_AUTHOR" '[.users[].login? | select(. != $author)]')"
-          reviewed_json="$(echo "$REVIEWS_JSON" | jq -r --arg author "$PR_AUTHOR" '[.[].user.login? | select(. != $author)] | sort | unique')"
+          PENDING_USERS=$(echo "$PENDING_RAW" | jq -r --arg author "$AUTHOR" '[.users[].login? | select(. != $author)]')
+          REVIEWED_USERS=$(echo "$REVIEWED_RAW" | jq -r --arg author "$AUTHOR" '[.[].user.login? | select(. != $author)] | sort | unique')
 
-          payload="$(jq -n \
+          PAYLOAD=$(jq -n \
             --arg repo "$REPO" \
-            --arg pr_id "PR-${PR_NUMBER}" \
-            --arg pr_number "$PR_NUMBER" \
-            --arg pr_title "$PR_TITLE" \
-            --arg pr_url "$PR_URL" \
-            --arg author "$PR_AUTHOR" \
-            --argjson pending "$pending_json" \
-            --argjson reviewed "$reviewed_json" \
-            '{repositoryName:$repo,pullRequestId:$pr_id,pullRequestNumber:($pr_number|tonumber),pullRequestTitle:$pr_title,pullRequestUrl:$pr_url,authorGithubId:$author,pendingReviewers:$pending,reviewedReviewers:$reviewed}')"
+            --arg prId "PR-$PR_NUMBER" \
+            --argjson prNumber "$PR_NUMBER" \
+            --arg prTitle "${{ github.event.pull_request.title }}" \
+            --arg prUrl "${{ github.event.pull_request.html_url }}" \
+            --arg author "$AUTHOR" \
+            --argjson pending "$PENDING_USERS" \
+            --argjson reviewed "$REVIEWED_USERS" \
+            '{
+              repositoryName: $repo,
+              pullRequestId: $prId,
+              pullRequestNumber: $prNumber,
+              pullRequestTitle: $prTitle,
+              pullRequestUrl: $prUrl,
+              authorGithubId: $author,
+              pendingReviewers: $pending,
+              reviewedReviewers: $reviewed
+            }')
 
-          BASE_URL="${REVIEW_EVENT_API_URL%/}"
-          curl -sS -X POST "${BASE_URL}/events/review-request" \
-            -H "Content-Type: application/json" \
-            -H "X-API-Key: ${REVIEW_EVENT_API_KEY}" \
-            -d "$payload"
+          if [ -n "$WEBHOOK_URL" ]; then
+            curl -X POST \
+              -H "Content-Type: application/json" \
+              -H "X-API-Key: ${{ secrets.PRISM_API_KEY }}" \
+              -d "$PAYLOAD" "$WEBHOOK_URL/events/review-request" --fail --silent --show-error
+          fi

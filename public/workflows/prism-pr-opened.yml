@@ -1,19 +1,65 @@
-name: PR-ism PR Opened Metrics
+name: PR Opened Collector
+
 on:
   pull_request:
-    types: [opened, reopened, ready_for_review]
+    types: [opened]
+
+env:
+  WEBHOOK_URL: "https://stats.pr-ism.site"
 
 jobs:
   collect-pr-opened:
     runs-on: ubuntu-latest
     steps:
-      - name: Collect PR Opened Metadata
-        uses: pr-ism/action-collect@v1
-        with:
-          api-key: ${{ secrets.PRISM_API_KEY }}
-          event-type: pr_opened
-          pr-url: ${{ github.event.pull_request.html_url }}
-          author: ${{ github.event.pull_request.user.login }}
-          base-branch: ${{ github.event.pull_request.base.ref }}
-          head-branch: ${{ github.event.pull_request.head.ref }}
-          created-at: ${{ github.event.pull_request.created_at }}
+      - name: Handle opened event
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          PR_DATA=$(gh api graphql -f query='
+            query($owner: String!, $repo: String!, $number: Int!) {
+              repository(owner: $owner, name: $repo) {
+                pullRequest(number: $number) {
+                  number
+                  title
+                  url
+                  additions
+                  deletions
+                  changedFiles
+                  createdAt
+                  author { login }
+                  commits(first: 100) {
+                    totalCount
+                    nodes {
+                      commit {
+                        oid
+                        committedDate
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          ' -f owner='${{ github.repository_owner }}' \
+            -f repo='${{ github.event.repository.name }}' \
+            -F number=${{ github.event.pull_request.number }})
+
+          FILES_DATA=$(gh api \
+            "repos/${{ github.repository }}/pulls/${{ github.event.pull_request.number }}/files" \
+            --jq '[.[] | {filename, status, additions, deletions}]')
+
+          PAYLOAD=$(jq -n \
+            --argjson prData "$PR_DATA" \
+            --argjson files "$FILES_DATA" \
+            --argjson isDraft "${{ github.event.pull_request.draft }}" \
+            '{
+              isDraft: $isDraft,
+              pullRequest: $prData.data.repository.pullRequest,
+              files: $files
+            }')
+
+          if [ -n "$WEBHOOK_URL" ]; then
+            curl -X POST \
+              -H "Content-Type: application/json" \
+              -H "X-API-Key: ${{ secrets.PRISM_API_KEY }}" \
+              -d "$PAYLOAD" "$WEBHOOK_URL/pull-request/opened" --fail --silent --show-error
+          fi

@@ -1,0 +1,60 @@
+name: Reviewer Collector
+
+on:
+  pull_request:
+    types: [review_requested, review_request_removed]
+
+env:
+  WEBHOOK_URL: "https://stats.pr-ism.site"
+
+jobs:
+  collect-reviewer:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Handle review_requested event
+        if: github.event.action == 'review_requested'
+        run: |
+          PAYLOAD=$(jq -n \
+            --argjson pullRequestNumber "${{ github.event.pull_request.number }}" \
+            --arg login "${{ github.event.requested_reviewer.login }}" \
+            --argjson id "${{ github.event.requested_reviewer.id }}" \
+            --arg requestedAt "$(date -u +%Y-%m-%dT%H:%M:%SZ)" \
+            '{
+              pullRequestNumber: $pullRequestNumber,
+              reviewer: {
+                login: $login,
+                id: $id
+              },
+              requestedAt: $requestedAt
+            }')
+
+          if [ -n "$WEBHOOK_URL" ]; then
+            curl -X POST \
+              -H "Content-Type: application/json" \
+              -H "X-API-Key: ${{ secrets.PRISM_API_KEY }}" \
+              -d "$PAYLOAD" "$WEBHOOK_URL/reviewer/added" --fail --silent --show-error
+          fi
+
+      - name: Handle review_request_removed event
+        if: github.event.action == 'review_request_removed'
+        run: |
+          PAYLOAD=$(jq -n \
+            --argjson pullRequestNumber "${{ github.event.pull_request.number }}" \
+            --arg login "${{ github.event.requested_reviewer.login }}" \
+            --argjson id "${{ github.event.requested_reviewer.id }}" \
+            --arg removedAt "$(date -u +%Y-%m-%dT%H:%M:%SZ)" \
+            '{
+              pullRequestNumber: $pullRequestNumber,
+              reviewer: {
+                login: $login,
+                id: $id
+              },
+              removedAt: $removedAt
+            }')
+
+          if [ -n "$WEBHOOK_URL" ]; then
+            curl -X POST \
+              -H "Content-Type: application/json" \
+              -H "X-API-Key: ${{ secrets.PRISM_API_KEY }}" \
+              -d "$PAYLOAD" "$WEBHOOK_URL/reviewer/removed" --fail --silent --show-error
+          fi

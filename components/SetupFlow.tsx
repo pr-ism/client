@@ -3,13 +3,15 @@
 import { useCallback, useEffect, useRef, useState, type MouseEvent, type RefObject } from 'react';
 // removed next/navigation import to fix compilation error
 
-type GithubTab = 'all' | 'notify' | 'pr-opened' | 'review-requested';
+type GithubTab = 'all' | 'notify' | 'pr-opened' | 'review-request-removed' | 'comment' | 'labeled' | 'review-submitted';
 
 const githubTabs: { key: GithubTab; label: string; description: string; filename: string; src: string }[] = [
   { key: 'all', label: '통합', description: '모든 기능을 하나의 워크플로우 파일로 통합한 버전입니다.', filename: 'prism.yml', src: '/workflows/prism.yml' },
-  { key: 'notify', label: 'Slack 알림', description: 'PR 리뷰 요청 시 Slack 채널로 알림을 보냅니다.', filename: 'prism-notify.yml', src: '/workflows/prism-notify.yml' },
-  { key: 'pr-opened', label: 'PR 수집', description: 'PR 생성 이벤트의 메타데이터를 수집하여 통계에 활용합니다.', filename: 'prism-pr-opened.yml', src: '/workflows/prism-pr-opened.yml' },
-  { key: 'review-requested', label: '리뷰 수집', description: '리뷰 요청 이벤트의 메타데이터를 수집하여 통계에 활용합니다.', filename: 'prism-review-requested.yml', src: '/workflows/prism-review-requested.yml' },
+  { key: 'pr-opened', label: 'PR 오픈', description: 'PR 생성 이벤트의 메타데이터를 수집하여 통계에 활용합니다.', filename: 'prism-pr-opened.yml', src: '/workflows/prism-pr-opened.yml' },
+  { key: 'review-request-removed', label: '리뷰 요청 제거', description: '리뷰 요청 제거 이벤트의 메타데이터를 수집하여 통계에 활용합니다.', filename: 'prism-review-request-removed.yml', src: '/workflows/prism-review-request-removed.yml' },
+  { key: 'comment', label: '코멘트', description: 'PR 코멘트 이벤트의 메타데이터를 수집하여 통계에 활용합니다.', filename: 'prism-comment.yml', src: '/workflows/prism-comment.yml' },
+  { key: 'labeled', label: 'PR 라벨', description: 'PR 라벨 추가/제거 이벤트의 메타데이터를 수집하여 통계에 활용합니다.', filename: 'prism-pr-label.yml', src: '/workflows/prism-pr-label.yml' },
+  { key: 'review-submitted', label: '리뷰 제출', description: '리뷰 제출 이벤트의 메타데이터를 수집하여 통계에 활용합니다.', filename: 'prism-review-submitted.yml', src: '/workflows/prism-review-submitted.yml' },
 ];
 
 
@@ -189,6 +191,14 @@ export default function SetupFlow({ onRequestMain }: SetupFlowProps) {
   }, [generatedApiKey]);
 
   useEffect(() => {
+    return () => {
+      if (githubCopyTimerRef.current) {
+        window.clearTimeout(githubCopyTimerRef.current);
+      }
+    };
+  }, []);
+
+  useEffect(() => {
     if (projectError) {
       setProjectError('');
     }
@@ -299,11 +309,15 @@ export default function SetupFlow({ onRequestMain }: SetupFlowProps) {
   }, [generatedApiKey]);
 
   const [inviteCopyMessage, setInviteCopyMessage] = useState('');
+  const [slackOAuthWarning, setSlackOAuthWarning] = useState('');
 
   const handleCopyInviteCommand = useCallback(async () => {
     const success = await copyText('/invite @PRism');
     setInviteCopyMessage(success ? '복사되었습니다!' : '복사에 실패했습니다.');
   }, []);
+
+  const [githubCopyMessage, setGithubCopyMessage] = useState('');
+  const githubCopyTimerRef = useRef<number | null>(null);
 
   const currentGithubCode = workflowScripts[githubTab] ?? '로딩 중...';
   const currentTabInfo = githubTabs.find((t) => t.key === githubTab)!;
@@ -312,7 +326,14 @@ export default function SetupFlow({ onRequestMain }: SetupFlowProps) {
     const code = workflowScripts[githubTab] ?? '';
     if (!code) return;
     const success = await copyText(code);
-    alert(success ? 'Github Actions 스크립트가 복사되었습니다!' : '복사에 실패했습니다.');
+    setGithubCopyMessage(success ? '복사되었습니다!' : '복사에 실패했습니다.');
+    if (githubCopyTimerRef.current) {
+      window.clearTimeout(githubCopyTimerRef.current);
+    }
+    githubCopyTimerRef.current = window.setTimeout(() => {
+      setGithubCopyMessage('');
+      githubCopyTimerRef.current = null;
+    }, 2500);
   }, [githubTab, workflowScripts]);
 
   const sectionClass = useCallback(
@@ -560,24 +581,35 @@ export default function SetupFlow({ onRequestMain }: SetupFlowProps) {
                   </div>
                 </div>
               )}
-              <a
-                href={slackOAuthUrl || '#'}
-                onClick={(e) => {
-                  if (!slackOAuthUrl) {
-                    e.preventDefault();
-                    alert('먼저 프로젝트를 생성하여 OAuth URL을 발급받아야 합니다.');
-                  }
-                }}
-                className={`inline-flex items-center gap-2 bg-indigo-600 hover:bg-indigo-700 text-white font-bold py-3 px-6 rounded-lg shadow-md shadow-indigo-100 transition-all transform hover:-translate-y-0.5 ${!slackOAuthUrl ? 'opacity-50 cursor-not-allowed' : ''}`}
-                aria-disabled={!slackOAuthUrl}
-              >
-                <img
-                  src="https://upload.wikimedia.org/wikipedia/commons/thumb/d/d5/Slack_icon_2019.svg/50px-Slack_icon_2019.svg.png"
-                  alt="Slack"
-                  className="w-5 h-5 brightness-0 invert"
-                />
-                Add to Slack
-              </a>
+              <div>
+                <a
+                  href={slackOAuthUrl || '#'}
+                  onClick={(e) => {
+                    if (!slackOAuthUrl) {
+                      e.preventDefault();
+                      setSlackOAuthWarning('먼저 프로젝트를 생성하여 OAuth URL을 발급받아야 합니다.');
+                      setTimeout(() => setSlackOAuthWarning(''), 3000);
+                    }
+                  }}
+                  className={`inline-flex items-center gap-2 bg-indigo-600 hover:bg-indigo-700 text-white font-bold py-3 px-6 rounded-lg shadow-md shadow-indigo-100 transition-all transform hover:-translate-y-0.5 ${!slackOAuthUrl ? 'opacity-50 cursor-not-allowed' : ''}`}
+                  aria-disabled={!slackOAuthUrl}
+                >
+                  <img
+                    src="https://upload.wikimedia.org/wikipedia/commons/thumb/d/d5/Slack_icon_2019.svg/50px-Slack_icon_2019.svg.png"
+                    alt="Slack"
+                    className="w-5 h-5 brightness-0 invert"
+                  />
+                  Add to Slack
+                </a>
+                {slackOAuthWarning && (
+                  <p className="text-sm text-amber-600 mt-2 flex items-center gap-1">
+                    <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" viewBox="0 0 20 20" fill="currentColor">
+                      <path fillRule="evenodd" d="M8.257 3.099c.765-1.36 2.722-1.36 3.486 0l5.58 9.92c.75 1.334-.213 2.98-1.742 2.98H4.42c-1.53 0-2.493-1.646-1.743-2.98l5.58-9.92zM11 13a1 1 0 11-2 0 1 1 0 012 0zm-1-8a1 1 0 00-1 1v3a1 1 0 002 0V6a1 1 0 00-1-1z" clipRule="evenodd" />
+                    </svg>
+                    {slackOAuthWarning}
+                  </p>
+                )}
+              </div>
             </div>
 
             <div>
@@ -689,9 +721,23 @@ export default function SetupFlow({ onRequestMain }: SetupFlowProps) {
             >
               3
             </div>
-            <div>
-              <h2 className="text-2xl font-bold text-slate-900">Github Actions 스크립트 설정</h2>
-              <p className="text-slate-500 mt-1">PR이 생성될 때마다 PR-ism에 알림을 보내도록 설정합니다.</p>
+            <div className="flex-1">
+              <div className="flex items-center justify-between">
+                <div>
+                  <h2 className="text-2xl font-bold text-slate-900">Github Actions 스크립트 설정</h2>
+                  <p className="text-slate-500 mt-1">PR이 생성될 때마다 PR-ism에 알림을 보내도록 설정합니다.</p>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => window.scrollTo({ top: document.documentElement.scrollHeight, behavior: 'smooth' })}
+                  className="hidden md:flex items-center gap-1 text-sm text-slate-600 hover:text-indigo-600 font-medium transition-colors"
+                >
+                  페이지 하단으로
+                  <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 14l-7 7m0 0l-7-7m7 7V3" />
+                  </svg>
+                </button>
+              </div>
             </div>
           </div>
 
@@ -732,7 +778,7 @@ export default function SetupFlow({ onRequestMain }: SetupFlowProps) {
                 {currentTabInfo.description}
               </p>
               <div className="relative group">
-                <div className="absolute top-3 right-3 opacity-100 sm:opacity-0 sm:group-hover:opacity-100 transition-opacity z-10">
+                <div className="absolute top-3 right-3 opacity-100 sm:opacity-0 sm:group-hover:opacity-100 transition-opacity z-10 flex flex-col items-end gap-1">
                   <button
                     type="button"
                     onClick={handleCopyGithubCode}
@@ -740,6 +786,11 @@ export default function SetupFlow({ onRequestMain }: SetupFlowProps) {
                   >
                     Copy Code
                   </button>
+                  {githubCopyMessage && (
+                    <span className="text-[11px] text-emerald-400 font-semibold bg-slate-800/80 backdrop-blur-sm px-2 py-1 rounded">
+                      {githubCopyMessage}
+                    </span>
+                  )}
                 </div>
                 <pre className="bg-[#1E293B] text-slate-300 p-5 rounded-t-none rounded-b-xl overflow-x-auto text-sm leading-relaxed shadow-inner code-block border border-slate-700 border-t-0">
                   <code>{currentGithubCode}</code>
@@ -761,9 +812,9 @@ export default function SetupFlow({ onRequestMain }: SetupFlowProps) {
                 </svg>
                 이전 단계: Slack 봇 설치
               </button>
-              <a href="/" onClick={handleReturnToMain} className="text-indigo-600 font-semibold hover:text-indigo-800 text-sm flex items-center gap-1">
-                메인으로 돌아가기
-                <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <a href="/projects" className={buttonClass}>
+                다음 단계: 프로젝트 목록 조회
+                <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M17 8l4 4m0 0l-4 4m4-4H3" />
                 </svg>
               </a>
