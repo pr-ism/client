@@ -145,7 +145,8 @@ function HomePageContent() {
   }, [openModal]);
 
   const handleSocialLogin = useCallback((provider: 'kakao' | 'google') => {
-    const url = `/oauth2/authorization/${provider}`;
+    const backendUrl = process.env.NEXT_PUBLIC_STATS_SERVER_URL || 'http://localhost:8081';
+    const url = `${backendUrl}/oauth2/authorization/${provider}`;
     window.location.href = url;
   }, []);
 
