@@ -6,6 +6,7 @@ on:
 
 env:
   WEBHOOK_URL: "https://stats.pr-ism.site"
+  PRISM_API_KEY: ${{ secrets.PRISM_API_KEY }}
 
 jobs:
   collect-pr-label:
@@ -30,7 +31,7 @@ jobs:
             curl -X POST \
               -H "Content-Type: application/json" \
               -H "X-API-Key: ${{ secrets.PRISM_API_KEY }}" \
-              -d "$PAYLOAD" "$WEBHOOK_URL/pull-request/label/added" --fail --silent --show-error
+              -d "$PAYLOAD" "$WEBHOOK_URL/webhook/pull-request/label/added" --fail --silent --show-error
           fi
 
       - name: Handle unlabeled event
@@ -52,5 +53,5 @@ jobs:
             curl -X POST \
               -H "Content-Type: application/json" \
               -H "X-API-Key: ${{ secrets.PRISM_API_KEY }}" \
-              -d "$PAYLOAD" "$WEBHOOK_URL/pull-request/label/removed" --fail --silent --show-error
+              -d "$PAYLOAD" "$WEBHOOK_URL/webhook/pull-request/label/removed" --fail --silent --show-error
           fi

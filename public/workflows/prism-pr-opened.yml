@@ -6,6 +6,7 @@ on:
 
 env:
   WEBHOOK_URL: "https://stats.pr-ism.site"
+  PRISM_API_KEY: ${{ secrets.PRISM_API_KEY }}
 
 jobs:
   collect-pr-opened:
@@ -61,5 +62,5 @@ jobs:
             curl -X POST \
               -H "Content-Type: application/json" \
               -H "X-API-Key: ${{ secrets.PRISM_API_KEY }}" \
-              -d "$PAYLOAD" "$WEBHOOK_URL/pull-request/opened" --fail --silent --show-error
+              -d "$PAYLOAD" "$WEBHOOK_URL/webhook/pull-request/opened" --fail --silent --show-error
           fi

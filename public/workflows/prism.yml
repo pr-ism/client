@@ -10,6 +10,7 @@ on:
 
 env:
   WEBHOOK_URL: "https://stats.pr-ism.site"
+  PRISM_API_KEY: ${{ secrets.PRISM_API_KEY }}
 
 jobs:
   collect-pr-opened:
@@ -66,7 +67,7 @@ jobs:
             curl -X POST \
               -H "Content-Type: application/json" \
               -H "X-API-Key: ${{ secrets.PRISM_API_KEY }}" \
-              -d "$PAYLOAD" "$WEBHOOK_URL/pull-request/opened" --fail --silent --show-error
+              -d "$PAYLOAD" "$WEBHOOK_URL/webhook/pull-request/opened" --fail --silent --show-error
           fi
 
   collect-reviewer:
@@ -94,7 +95,7 @@ jobs:
             curl -X POST \
               -H "Content-Type: application/json" \
               -H "X-API-Key: ${{ secrets.PRISM_API_KEY }}" \
-              -d "$PAYLOAD" "$WEBHOOK_URL/reviewer/added" --fail --silent --show-error
+              -d "$PAYLOAD" "$WEBHOOK_URL/webhook/reviewer/added" --fail --silent --show-error
           fi
 
       - name: Handle review_request_removed event
@@ -118,7 +119,7 @@ jobs:
             curl -X POST \
               -H "Content-Type: application/json" \
               -H "X-API-Key: ${{ secrets.PRISM_API_KEY }}" \
-              -d "$PAYLOAD" "$WEBHOOK_URL/reviewer/removed" --fail --silent --show-error
+              -d "$PAYLOAD" "$WEBHOOK_URL/webhook/reviewer/removed" --fail --silent --show-error
           fi
 
   collect-pr-label:
@@ -144,7 +145,7 @@ jobs:
             curl -X POST \
               -H "Content-Type: application/json" \
               -H "X-API-Key: ${{ secrets.PRISM_API_KEY }}" \
-              -d "$PAYLOAD" "$WEBHOOK_URL/pull-request/label/added" --fail --silent --show-error
+              -d "$PAYLOAD" "$WEBHOOK_URL/webhook/pull-request/label/added" --fail --silent --show-error
           fi
 
       - name: Handle unlabeled event
@@ -166,7 +167,7 @@ jobs:
             curl -X POST \
               -H "Content-Type: application/json" \
               -H "X-API-Key: ${{ secrets.PRISM_API_KEY }}" \
-              -d "$PAYLOAD" "$WEBHOOK_URL/pull-request/label/removed" --fail --silent --show-error
+              -d "$PAYLOAD" "$WEBHOOK_URL/webhook/pull-request/label/removed" --fail --silent --show-error
           fi
 
   collect-review-submitted:
@@ -211,7 +212,7 @@ jobs:
             curl -X POST \
               -H "Content-Type: application/json" \
               -H "X-API-Key: ${{ secrets.PRISM_API_KEY }}" \
-              -d "$PAYLOAD" "$WEBHOOK_URL/review/submitted" --fail --silent --show-error
+              -d "$PAYLOAD" "$WEBHOOK_URL/webhook/review/submitted" --fail --silent --show-error
           fi
 
   collect-review-comment:
@@ -257,7 +258,7 @@ jobs:
             curl -X POST \
               -H "Content-Type: application/json" \
               -H "X-API-Key: ${{ secrets.PRISM_API_KEY }}" \
-              -d "$PAYLOAD" "$WEBHOOK_URL/review-comment/created" --fail --silent --show-error
+              -d "$PAYLOAD" "$WEBHOOK_URL/webhook/review-comment/created" --fail --silent --show-error
           fi
 
       - name: Handle review comment edited event
@@ -277,5 +278,5 @@ jobs:
             curl -X POST \
               -H "Content-Type: application/json" \
               -H "X-API-Key: ${{ secrets.PRISM_API_KEY }}" \
-              -d "$PAYLOAD" "$WEBHOOK_URL/review-comment/edited" --fail --silent --show-error
+              -d "$PAYLOAD" "$WEBHOOK_URL/webhook/review-comment/edited" --fail --silent --show-error
           fi

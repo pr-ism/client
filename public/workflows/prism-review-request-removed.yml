@@ -6,6 +6,7 @@ on:
 
 env:
   WEBHOOK_URL: "https://stats.pr-ism.site"
+  PRISM_API_KEY: ${{ secrets.PRISM_API_KEY }}
 
 jobs:
   collect-reviewer:
@@ -32,7 +33,7 @@ jobs:
             curl -X POST \
               -H "Content-Type: application/json" \
               -H "X-API-Key: ${{ secrets.PRISM_API_KEY }}" \
-              -d "$PAYLOAD" "$WEBHOOK_URL/reviewer/added" --fail --silent --show-error
+              -d "$PAYLOAD" "$WEBHOOK_URL/webhook/reviewer/added" --fail --silent --show-error
           fi
 
       - name: Handle review_request_removed event
@@ -56,5 +57,5 @@ jobs:
             curl -X POST \
               -H "Content-Type: application/json" \
               -H "X-API-Key: ${{ secrets.PRISM_API_KEY }}" \
-              -d "$PAYLOAD" "$WEBHOOK_URL/reviewer/removed" --fail --silent --show-error
+              -d "$PAYLOAD" "$WEBHOOK_URL/webhook/reviewer/removed" --fail --silent --show-error
           fi

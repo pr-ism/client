@@ -6,6 +6,7 @@ on:
 
 env:
   WEBHOOK_URL: "https://stats.pr-ism.site"
+  PRISM_API_KEY: ${{ secrets.PRISM_API_KEY }}
 
 jobs:
   collect-review-comment:
@@ -50,7 +51,7 @@ jobs:
             curl -X POST \
               -H "Content-Type: application/json" \
               -H "X-API-Key: ${{ secrets.PRISM_API_KEY }}" \
-              -d "$PAYLOAD" "$WEBHOOK_URL/review-comment/created" --fail --silent --show-error
+              -d "$PAYLOAD" "$WEBHOOK_URL/webhook/review-comment/created" --fail --silent --show-error
           fi
 
       - name: Handle review comment edited event
@@ -70,5 +71,5 @@ jobs:
             curl -X POST \
               -H "Content-Type: application/json" \
               -H "X-API-Key: ${{ secrets.PRISM_API_KEY }}" \
-              -d "$PAYLOAD" "$WEBHOOK_URL/review-comment/edited" --fail --silent --show-error
+              -d "$PAYLOAD" "$WEBHOOK_URL/webhook/review-comment/edited" --fail --silent --show-error
           fi
