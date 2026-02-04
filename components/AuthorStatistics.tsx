@@ -102,6 +102,13 @@ export default function AuthorStatistics({ projectId }: { projectId: string }) {
       }
 
       const ctx = chartRef.current!.getContext('2d')!;
+
+      // 두 축의 최대값을 계산
+      const maxPRs = Math.max(...authors.map((a) => a.pullRequestCount));
+      const maxCommits = Math.max(...authors.map((a) => a.averageCommitCount));
+      const maxValue = Math.max(maxPRs, maxCommits);
+      const suggestedMax = Math.ceil(maxValue * 1.1);
+
       chartInstanceRef.current = new ChartJS(ctx, {
         type: 'bar',
         data: {
@@ -142,12 +149,16 @@ export default function AuthorStatistics({ projectId }: { projectId: string }) {
               position: 'left' as const,
               grid: { color: '#F1F5F9' },
               title: { display: true, text: 'PR Count' },
+              beginAtZero: true,
+              suggestedMax: suggestedMax,
             },
             y1: {
               type: 'linear' as const,
               position: 'right' as const,
               grid: { display: false },
               title: { display: true, text: 'Commits' },
+              beginAtZero: true,
+              suggestedMax: suggestedMax,
             },
           },
         },
@@ -248,7 +259,7 @@ export default function AuthorStatistics({ projectId }: { projectId: string }) {
                         </h3>
                         <div className="text-sm text-slate-500 font-mono truncate" title={`@${author.authorGithubId}`}>@{author.authorGithubId}</div>
                         <div className="mt-1 inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-indigo-100 text-indigo-700">
-                          {author.pullRequestCount} PRs Merged
+                          {author.pullRequestCount} PRs Opened
                         </div>
                       </div>
                     </div>
