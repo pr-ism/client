@@ -1,7 +1,16 @@
 {
   "permissions": {
     "allow": [
-      "Bash(npx next build:*)"
+      "Bash(npx next build:*)",
+      "Bash(if [ -f .next/routes-manifest.json ])",
+      "Bash(then cat .next/routes-manifest.json)",
+      "Bash(else echo \"Build files not found\")",
+      "Bash(fi)",
+      "Bash(git commit:*)",
+      "Bash(curl:*)",
+      "Bash(git add:*)",
+      "Bash(npm run build:*)",
+      "Bash(git push)"
     ]
   }
 }
