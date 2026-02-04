@@ -57,6 +57,8 @@ function HomePageContent() {
   const [sessionExpiredToast, setSessionExpiredToast] = useState(false);
   // 초기값을 false로 설정하여 로딩 전에는 무조건 숨김
   const [isReady, setIsReady] = useState(false);
+  const [isLoggedIn, setIsLoggedIn] = useState(false);
+  const [showProfileMenu, setShowProfileMenu] = useState(false);
 
   useEffect(() => {
     setMounted(true);
@@ -78,15 +80,17 @@ function HomePageContent() {
 
   useEffect(() => {
     // 쿠키 체크 및 초기화 로직
-    const match = document.cookie
-      .split(';')
-      .map((entry) => entry.trim())
-      .find((entry) => entry.startsWith('prism_show_setup='));
+    const cookies = document.cookie.split(';').map((entry) => entry.trim());
 
-    if (match) {
+    const showSetupMatch = cookies.find((entry) => entry.startsWith('prism_show_setup='));
+    if (showSetupMatch) {
       setShowSetup(true);
       document.cookie = 'prism_show_setup=; path=/; max-age=0';
     }
+
+    // 로그인 상태 확인
+    const hasAccessToken = cookies.some((entry) => entry.startsWith('prism_access_token='));
+    setIsLoggedIn(hasAccessToken);
 
     // setTimeout을 사용하여 CSS 로딩 및 렌더링 안정화 시간을 확실히 확보
     // 100ms 지연 후 화면 표시 (사용자는 거의 느끼지 못하지만 FOUC 방지에 효과적)
@@ -133,6 +137,20 @@ function HomePageContent() {
     }
   }, [showSetup]);
 
+  useEffect(() => {
+    if (!showProfileMenu) return;
+
+    const handleClickOutside = (event: MouseEvent) => {
+      const target = event.target as HTMLElement;
+      if (!target.closest('.profile-menu-container')) {
+        setShowProfileMenu(false);
+      }
+    };
+
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, [showProfileMenu]);
+
   const handleAddToSlack = useCallback(() => {
     const hasToken = document.cookie
       .split(';')
@@ -147,6 +165,17 @@ function HomePageContent() {
   const handleSocialLogin = useCallback((provider: 'kakao' | 'google') => {
     const url = `/oauth2/authorization/${provider}`;
     window.location.href = url;
+  }, []);
+
+  const handleLogout = useCallback(() => {
+    document.cookie = 'prism_access_token=; path=/; max-age=0';
+    setIsLoggedIn(false);
+    setShowProfileMenu(false);
+    window.location.reload();
+  }, []);
+
+  const toggleProfileMenu = useCallback(() => {
+    setShowProfileMenu(prev => !prev);
   }, []);
 
   return (
@@ -205,15 +234,44 @@ function HomePageContent() {
           </svg>
           PR-ism
         </div>
-        <button
-          onClick={(event) => {
-            event.preventDefault();
-            openModal();
-          }}
-          className="bg-indigo-600 hover:bg-indigo-700 text-white font-bold py-2 px-6 rounded-full shadow-md shadow-indigo-200 transition-all transform hover:-translate-y-0.5 text-sm flex items-center gap-2"
-        >
-          Login
-        </button>
+        {isLoggedIn ? (
+          <div className="relative profile-menu-container">
+            <button
+              onClick={toggleProfileMenu}
+              className="bg-indigo-600 hover:bg-indigo-700 text-white font-bold p-2 rounded-full shadow-md shadow-indigo-200 transition-all transform hover:-translate-y-0.5 flex items-center gap-2"
+            >
+              <svg className="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
+              </svg>
+            </button>
+            {showProfileMenu && (
+              <div className="absolute right-0 mt-2 w-48 bg-white rounded-lg shadow-xl border border-slate-200 py-1 z-50">
+                <a
+                  href="/projects"
+                  className="block px-4 py-2 text-sm text-slate-700 hover:bg-indigo-50 transition-colors"
+                >
+                  내 프로젝트
+                </a>
+                <button
+                  onClick={handleLogout}
+                  className="block w-full text-left px-4 py-2 text-sm text-slate-700 hover:bg-indigo-50 transition-colors"
+                >
+                  로그아웃
+                </button>
+              </div>
+            )}
+          </div>
+        ) : (
+          <button
+            onClick={(event) => {
+              event.preventDefault();
+              openModal();
+            }}
+            className="bg-indigo-600 hover:bg-indigo-700 text-white font-bold py-2 px-6 rounded-full shadow-md shadow-indigo-200 transition-all transform hover:-translate-y-0.5 text-sm flex items-center gap-2"
+          >
+            Login
+          </button>
+        )}
       </nav>
 
       <main className="flex-grow flex flex-col items-center justify-center px-6 py-12 md:py-20 max-w-5xl mx-auto w-full">
