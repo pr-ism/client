@@ -201,8 +201,7 @@ export default function ProjectList() {
                         />
                       </svg>
                     </div>
-                    <h3 className="text-lg font-bold text-slate-900 mb-1">{project.name}</h3>
-                    <p className="text-sm text-slate-500 mb-6">ID: {project.id}</p>
+                    <h3 className="text-lg font-bold text-slate-900 mb-6">{project.name}</h3>
                   </div>
                 );
               })}
