@@ -31,20 +31,31 @@ async function tryRefresh(): Promise<boolean> {
 
   refreshPromise = (async () => {
     try {
+      console.log('[fetchWithAuth] Attempting to refresh token...');
       const res = await fetch(`${STATS_SERVER}/refresh-token`, {
         method: 'POST',
         credentials: 'include',
       });
 
-      if (!res.ok) return false;
+      console.log('[fetchWithAuth] Refresh response status:', res.status);
+
+      if (!res.ok) {
+        console.error('[fetchWithAuth] Refresh failed with status:', res.status);
+        const errorText = await res.text().catch(() => 'Unable to read error');
+        console.error('[fetchWithAuth] Refresh error body:', errorText);
+        return false;
+      }
 
       const body: { authorization?: string } = await res.json();
       if (body.authorization) {
+        console.log('[fetchWithAuth] Refresh successful, new token received');
         setAccessToken(body.authorization);
         return true;
       }
+      console.warn('[fetchWithAuth] Refresh response missing authorization field');
       return false;
-    } catch {
+    } catch (error) {
+      console.error('[fetchWithAuth] Refresh exception:', error);
       return false;
     } finally {
       refreshPromise = null;
@@ -76,10 +87,13 @@ export async function fetchWithAuth(
   let res = await doFetch();
 
   if (res.status === 401) {
+    console.log('[fetchWithAuth] Received 401, attempting token refresh...');
     const refreshed = await tryRefresh();
     if (refreshed) {
+      console.log('[fetchWithAuth] Token refreshed successfully, retrying request...');
       res = await doFetch();
     } else {
+      console.error('[fetchWithAuth] Token refresh failed, redirecting to login...');
       clearAccessToken();
       window.location.href = '/?session_expired=true';
     }

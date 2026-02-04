@@ -8,6 +8,10 @@ on:
   pull_request_review_comment:
     types: [created, edited]
 
+permissions:
+  contents: read
+  pull-requests: read
+
 env:
   WEBHOOK_URL: "https://stats.pr-ism.site"
   PRISM_API_KEY: ${{ secrets.PRISM_API_KEY }}
@@ -279,4 +283,52 @@ jobs:
               -H "Content-Type: application/json" \
               -H "X-API-Key: ${{ secrets.PRISM_API_KEY }}" \
               -d "$PAYLOAD" "$WEBHOOK_URL/webhook/review-comment/edited" --fail --silent --show-error
+          fi
+
+  collect-review-request-notification:
+    if: github.event.action == 'review_requested'
+    runs-on: ubuntu-latest
+    env:
+      WEBHOOK_URL: "https://slack.pr-ism.site"
+    steps:
+      - name: Handle review requested event
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          OWNER="${{ github.repository_owner }}"
+          REPO="${{ github.event.repository.name }}"
+          PR_NUMBER="${{ github.event.pull_request.number }}"
+          AUTHOR="${{ github.event.pull_request.user.login }}"
+
+          PENDING_RAW=$(gh api "repos/$OWNER/$REPO/pulls/$PR_NUMBER/requested_reviewers" || echo '{"users":[],"teams":[]}')
+          REVIEWED_RAW=$(gh api --paginate "repos/$OWNER/$REPO/pulls/$PR_NUMBER/reviews" || echo '[]')
+
+          PENDING_USERS=$(echo "$PENDING_RAW" | jq -r --arg author "$AUTHOR" '[.users[].login? | select(. != $author)]')
+          REVIEWED_USERS=$(echo "$REVIEWED_RAW" | jq -r --arg author "$AUTHOR" '[.[].user.login? | select(. != $author)] | sort | unique')
+
+          PAYLOAD=$(jq -n \
+            --arg repo "$REPO" \
+            --arg prId "PR-$PR_NUMBER" \
+            --argjson prNumber "$PR_NUMBER" \
+            --arg prTitle "${{ github.event.pull_request.title }}" \
+            --arg prUrl "${{ github.event.pull_request.html_url }}" \
+            --arg author "$AUTHOR" \
+            --argjson pending "$PENDING_USERS" \
+            --argjson reviewed "$REVIEWED_USERS" \
+            '{
+              repositoryName: $repo,
+              pullRequestId: $prId,
+              pullRequestNumber: $prNumber,
+              pullRequestTitle: $prTitle,
+              pullRequestUrl: $prUrl,
+              authorGithubId: $author,
+              pendingReviewers: $pending,
+              reviewedReviewers: $reviewed
+            }')
+
+          if [ -n "$WEBHOOK_URL" ]; then
+            curl -X POST \
+              -H "Content-Type: application/json" \
+              -H "X-API-Key: ${{ secrets.PRISM_API_KEY }}" \
+              -d "$PAYLOAD" "$WEBHOOK_URL/webhook/events/review-request" --fail --silent --show-error
           fi

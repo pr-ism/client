@@ -7,10 +7,11 @@ type GithubTab = 'all' | 'notify' | 'pr-opened' | 'review-request-removed' | 'co
 
 const githubTabs: { key: GithubTab; label: string; description: string; filename: string; src: string }[] = [
   { key: 'all', label: '통합', description: '모든 기능을 하나의 워크플로우 파일로 통합한 버전입니다.', filename: 'prism.yml', src: '/workflows/prism.yml' },
+  { key: 'notify', label: '리뷰 요청 알림', description: '리뷰 요청 이벤트를 감지하여 Slack으로 알림을 전송합니다.', filename: 'prism-notify.yml', src: '/workflows/prism-notify.yml' },
   { key: 'pr-opened', label: 'PR 오픈', description: 'PR 생성 이벤트의 메타데이터를 수집하여 통계에 활용합니다.', filename: 'prism-pr-opened.yml', src: '/workflows/prism-pr-opened.yml' },
-  { key: 'review-request-removed', label: '리뷰 요청 제거', description: '리뷰 요청 제거 이벤트의 메타데이터를 수집하여 통계에 활용합니다.', filename: 'prism-review-request-removed.yml', src: '/workflows/prism-review-request-removed.yml' },
+  { key: 'review-request-removed', label: '리뷰어 관리', description: '리뷰어 제거 이벤트의 메타데이터를 수집하여 통계에 활용합니다.', filename: 'prism-review-request-removed.yml', src: '/workflows/prism-review-request-removed.yml' },
   { key: 'comment', label: '코멘트', description: 'PR 코멘트 이벤트의 메타데이터를 수집하여 통계에 활용합니다.', filename: 'prism-comment.yml', src: '/workflows/prism-comment.yml' },
-  { key: 'labeled', label: 'PR 라벨', description: 'PR 라벨 추가/제거 이벤트의 메타데이터를 수집하여 통계에 활용합니다.', filename: 'prism-pr-label.yml', src: '/workflows/prism-pr-label.yml' },
+  { key: 'labeled', label: 'PR 라벨', description: 'PR 라벨 추가/제거 이벤트의 메타데이터를 수집하여 통계에 활용합니다.', filename: 'prism-labeled.yml', src: '/workflows/prism-labeled.yml' },
   { key: 'review-submitted', label: '리뷰 제출', description: '리뷰 제출 이벤트의 메타데이터를 수집하여 통계에 활용합니다.', filename: 'prism-review-submitted.yml', src: '/workflows/prism-review-submitted.yml' },
 ];
 
@@ -97,7 +98,7 @@ export default function SetupFlow({ onRequestMain }: SetupFlowProps) {
     });
   }, []);
 
-  // 1. 초기 렌더링 및 토큰 로드
+  // 1. 초기 렌더링 및 토큰/API Key 로드
   useEffect(() => {
     const timer = setTimeout(() => {
       setIsReady(true);
@@ -118,6 +119,13 @@ export default function SetupFlow({ onRequestMain }: SetupFlowProps) {
           setAccessToken(rawValue);
         }
       }
+    }
+
+    // sessionStorage에서 API key 복원 (GitHub Actions 섹션에서 표시용)
+    const savedApiKey = sessionStorage.getItem('prism_api_key');
+    if (savedApiKey) {
+      setGeneratedApiKey(savedApiKey);
+      // projectCreated는 설정하지 않아 새 프로젝트 생성 가능
     }
 
     return () => clearTimeout(timer);
@@ -274,6 +282,11 @@ export default function SetupFlow({ onRequestMain }: SetupFlowProps) {
       setGeneratedApiKey(newApiKey);
       setProjectCreated(true);
       setShowApiKey(true);
+
+      // sessionStorage에 API key 저장 (리다이렉트 후에도 유지, 새 프로젝트 생성 시 덮어씀)
+      if (newApiKey) {
+        sessionStorage.setItem('prism_api_key', newApiKey);
+      }
 
     } catch (error) {
       console.error(error);
@@ -744,9 +757,39 @@ export default function SetupFlow({ onRequestMain }: SetupFlowProps) {
               <code className="text-sm bg-slate-100 px-1.5 py-0.5 rounded text-indigo-700 font-mono">.github/workflows/{currentTabInfo.filename}</code>{' '}
               경로에 아래 내용을 추가하세요.
               <br />
-              위에서 발급받은 API Key는 Github Secrets에{' '}
+              아래 API Key를 Github Secrets에{' '}
               <code className="text-sm bg-slate-100 px-1.5 py-0.5 rounded text-indigo-700 font-mono">PRISM_API_KEY</code>로 등록해야 합니다.
             </p>
+
+            {generatedApiKey && (
+              <div className="border border-indigo-100 bg-indigo-50 rounded-lg p-4">
+                <h3 className="font-bold text-slate-800 mb-2 flex items-center gap-2">
+                  <span className="w-1.5 h-1.5 rounded-full bg-indigo-500" />
+                  발급된 API Key
+                </h3>
+                <div className="relative flex items-center">
+                  <input
+                    type="text"
+                    value={generatedApiKey}
+                    readOnly
+                    className="w-full bg-slate-800 border border-slate-700 text-emerald-400 font-mono text-sm rounded-lg p-3 pr-20 focus:outline-none focus:ring-2 focus:ring-indigo-500 shadow-inner"
+                  />
+                  <button
+                    type="button"
+                    onClick={handleCopyApiKey}
+                    className="absolute right-1 top-1 bottom-1 bg-slate-700 hover:bg-slate-600 text-white font-medium px-3 rounded-md text-xs border border-slate-600 shadow-sm transition-all flex items-center gap-1"
+                  >
+                    <svg xmlns="http://www.w3.org/2000/svg" className="h-3 w-3" viewBox="0 0 24 24" fill="none" stroke="currentColor">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z" />
+                    </svg>
+                    복사
+                  </button>
+                </div>
+                {copyMessage && (
+                  <p className="text-[11px] text-slate-800 font-semibold mt-2">{copyMessage}</p>
+                )}
+              </div>
+            )}
 
             <div>
               <div className="flex flex-wrap gap-1 mb-0">
