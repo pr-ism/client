@@ -49,9 +49,7 @@ type SlackStatus = 'idle' | 'loading' | 'success' | 'error';
 
 const STATS_SERVER_URL = process.env.NEXT_PUBLIC_STATS_SERVER_URL ?? 'http://localhost:8081';
 const SLACK_BOT_URL = process.env.NEXT_PUBLIC_SLACK_BOT_URL ?? 'https://slack.prism.dev';
-const USE_SLACK_PROXY = process.env.NEXT_PUBLIC_SLACK_USE_API_PROXY !== 'false';
-const SLACK_PROXY_BASE = USE_SLACK_PROXY ? '/api' : SLACK_BOT_URL;
-const SLACK_INSTALL_ENDPOINT = USE_SLACK_PROXY ? `${SLACK_PROXY_BASE}/slack/install` : `${SLACK_BOT_URL}/slack/install`;
+const SLACK_INSTALL_ENDPOINT = `${SLACK_BOT_URL}/slack/install`;
 
 type SetupFlowProps = {
   onRequestMain?: () => void;
@@ -151,8 +149,7 @@ export default function SetupFlow({ onRequestMain }: SetupFlowProps) {
 
       try {
         // 백엔드 컨트롤러: @GetMapping("/callback") public ResponseEntity<Void> callback(...)
-        const callbackBase = USE_SLACK_PROXY ? '/api' : SLACK_BOT_URL;
-        const callbackUrl = `${callbackBase}${window.location.pathname}${window.location.search}`;
+        const callbackUrl = `${SLACK_BOT_URL}${window.location.pathname}${window.location.search}`;
         const response = await fetch(callbackUrl, {
           method: 'GET',
           credentials: 'include',
