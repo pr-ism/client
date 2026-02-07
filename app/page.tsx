@@ -302,7 +302,7 @@ function HomePageContent() {
             </svg>
           </div>
           <h1 className="text-4xl md:text-5xl font-bold text-slate-900 mb-6 leading-tight">
-            PR 리뷰를 자동화하고,
+            통계로 보는 PR 현황,
             <br />
             병목을 드러내다
           </h1>
