@@ -3,17 +3,11 @@
 import { useCallback, useEffect, useRef, useState, type MouseEvent, type RefObject } from 'react';
 // removed next/navigation import to fix compilation error
 
-type GithubTab = 'all' | 'notify' | 'pr-opened' | 'review-request-removed' | 'comment' | 'labeled' | 'review-submitted';
-
-const githubTabs: { key: GithubTab; label: string; description: string; filename: string; src: string }[] = [
-  { key: 'all', label: '통합', description: '모든 기능을 하나의 워크플로우 파일로 통합한 버전입니다.', filename: 'prism.yml', src: '/workflows/prism.yml' },
-  { key: 'notify', label: '리뷰 요청 알림', description: '리뷰 요청 이벤트를 감지하여 Slack으로 알림을 전송합니다.', filename: 'prism-notify.yml', src: '/workflows/prism-notify.yml' },
-  { key: 'pr-opened', label: 'PR 오픈', description: 'PR 생성 이벤트의 메타데이터를 수집하여 통계에 활용합니다.', filename: 'prism-pr-opened.yml', src: '/workflows/prism-pr-opened.yml' },
-  { key: 'review-request-removed', label: '리뷰어 관리', description: '리뷰어 제거 이벤트의 메타데이터를 수집하여 통계에 활용합니다.', filename: 'prism-review-request-removed.yml', src: '/workflows/prism-review-request-removed.yml' },
-  { key: 'comment', label: '코멘트', description: 'PR 코멘트 이벤트의 메타데이터를 수집하여 통계에 활용합니다.', filename: 'prism-comment.yml', src: '/workflows/prism-comment.yml' },
-  { key: 'labeled', label: 'PR 라벨', description: 'PR 라벨 추가/제거 이벤트의 메타데이터를 수집하여 통계에 활용합니다.', filename: 'prism-labeled.yml', src: '/workflows/prism-labeled.yml' },
-  { key: 'review-submitted', label: '리뷰 제출', description: '리뷰 제출 이벤트의 메타데이터를 수집하여 통계에 활용합니다.', filename: 'prism-review-submitted.yml', src: '/workflows/prism-review-submitted.yml' },
-];
+const githubWorkflow = {
+  filename: 'prism.yml',
+  src: '/workflows/prism.yml',
+  description: '모든 기능을 하나의 워크플로우 파일로 통합한 버전입니다.',
+};
 
 
 const copyText = async (text: string) => {
@@ -75,8 +69,7 @@ export default function SetupFlow({ onRequestMain }: SetupFlowProps) {
   const [slackErrorMessage, setSlackErrorMessage] = useState('');
 
   const [isReady, setIsReady] = useState(false);
-  const [githubTab, setGithubTab] = useState<GithubTab>('all');
-  const [workflowScripts, setWorkflowScripts] = useState<Record<string, string>>({});
+  const [githubWorkflowScript, setGithubWorkflowScript] = useState('');
 
   const projectRef = useRef<HTMLDivElement>(null);
   const slackRef = useRef<HTMLDivElement>(null);
@@ -85,17 +78,9 @@ export default function SetupFlow({ onRequestMain }: SetupFlowProps) {
 
   // 0. YML 파일 로드
   useEffect(() => {
-    Promise.all(
-      githubTabs.map((t) =>
-        fetch(t.src).then((r) => r.ok ? r.text() : '').then((text) => [t.key, text.trimEnd()] as const)
-      )
-    ).then((entries) => {
-      const scripts: Record<string, string> = {};
-      for (const [key, text] of entries) {
-        scripts[key] = text;
-      }
-      setWorkflowScripts(scripts);
-    });
+    fetch(githubWorkflow.src)
+      .then((response) => (response.ok ? response.text() : ''))
+      .then((text) => setGithubWorkflowScript(text.trimEnd()));
   }, []);
 
   // 1. 초기 렌더링 및 토큰/API Key 로드
@@ -329,11 +314,10 @@ export default function SetupFlow({ onRequestMain }: SetupFlowProps) {
   const [githubCopyMessage, setGithubCopyMessage] = useState('');
   const githubCopyTimerRef = useRef<number | null>(null);
 
-  const currentGithubCode = workflowScripts[githubTab] ?? '로딩 중...';
-  const currentTabInfo = githubTabs.find((t) => t.key === githubTab)!;
+  const currentGithubCode = githubWorkflowScript || '로딩 중...';
 
   const handleCopyGithubCode = useCallback(async () => {
-    const code = workflowScripts[githubTab] ?? '';
+    const code = githubWorkflowScript;
     if (!code) return;
     const success = await copyText(code);
     setGithubCopyMessage(success ? '복사되었습니다!' : '복사에 실패했습니다.');
@@ -344,7 +328,7 @@ export default function SetupFlow({ onRequestMain }: SetupFlowProps) {
       setGithubCopyMessage('');
       githubCopyTimerRef.current = null;
     }, 2500);
-  }, [githubTab, workflowScripts]);
+  }, [githubWorkflowScript]);
 
   const sectionClass = useCallback(
     (name: SetupSection) => {
@@ -754,7 +738,7 @@ export default function SetupFlow({ onRequestMain }: SetupFlowProps) {
           <div className="space-y-6 pl-0 md:pl-14">
             <p className="text-slate-600 leading-relaxed">
               프로젝트의{' '}
-              <code className="text-sm bg-slate-100 px-1.5 py-0.5 rounded text-indigo-700 font-mono">.github/workflows/{currentTabInfo.filename}</code>{' '}
+              <code className="text-sm bg-slate-100 px-1.5 py-0.5 rounded text-indigo-700 font-mono">.github/workflows/{githubWorkflow.filename}</code>{' '}
               경로에 아래 내용을 추가하세요.
               <br />
               아래 API Key를 Github Secrets에{' '}
@@ -792,30 +776,8 @@ export default function SetupFlow({ onRequestMain }: SetupFlowProps) {
             )}
 
             <div>
-              <div className="flex flex-wrap gap-1 mb-0">
-                {githubTabs.map((tab) => (
-                  <button
-                    key={tab.key}
-                    type="button"
-                    onClick={() => setGithubTab(tab.key)}
-                    className={[
-                      'px-4 py-2 text-sm font-medium rounded-t-lg transition-colors relative',
-                      githubTab === tab.key
-                        ? 'bg-[#1E293B] text-white'
-                        : 'bg-slate-100 text-slate-500 hover:bg-slate-200 hover:text-slate-700',
-                    ].join(' ')}
-                  >
-                    {tab.label}
-                    {tab.key === 'all' && (
-                      <span className="ml-1.5 text-[10px] bg-indigo-500 text-white px-1.5 py-0.5 rounded-full font-bold align-middle">
-                        ALL
-                      </span>
-                    )}
-                  </button>
-                ))}
-              </div>
-              <p className="text-xs text-slate-500 bg-slate-50 border border-slate-200 border-b-0 rounded-none px-4 py-2">
-                {currentTabInfo.description}
+              <p className="text-xs text-slate-500 bg-slate-50 border border-slate-200 border-b-0 rounded-t-lg px-4 py-2">
+                {githubWorkflow.description}
               </p>
               <div className="relative group">
                 <div className="absolute top-3 right-3 opacity-100 sm:opacity-0 sm:group-hover:opacity-100 transition-opacity z-10 flex flex-col items-end gap-1">
