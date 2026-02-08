@@ -6,7 +6,6 @@ import { useCallback, useEffect, useRef, useState, type MouseEvent, type RefObje
 const githubWorkflow = {
   filename: 'prism.yml',
   src: '/workflows/prism.yml',
-  description: '모든 기능을 하나의 워크플로우 파일로 통합한 버전입니다.',
 };
 
 
@@ -776,9 +775,6 @@ export default function SetupFlow({ onRequestMain }: SetupFlowProps) {
             )}
 
             <div>
-              <p className="text-xs text-slate-500 bg-slate-50 border border-slate-200 border-b-0 rounded-t-lg px-4 py-2">
-                {githubWorkflow.description}
-              </p>
               <div className="relative group">
                 <div className="absolute top-3 right-3 opacity-100 sm:opacity-0 sm:group-hover:opacity-100 transition-opacity z-10 flex flex-col items-end gap-1">
                   <button
@@ -794,7 +790,7 @@ export default function SetupFlow({ onRequestMain }: SetupFlowProps) {
                     </span>
                   )}
                 </div>
-                <pre className="bg-[#1E293B] text-slate-300 p-5 rounded-t-none rounded-b-xl overflow-x-auto text-sm leading-relaxed shadow-inner code-block border border-slate-700 border-t-0">
+                <pre className="bg-[#1E293B] text-slate-300 p-5 rounded-xl overflow-x-auto text-sm leading-relaxed shadow-inner code-block border border-slate-700">
                   <code>{currentGithubCode}</code>
                 </pre>
               </div>
