@@ -1,13 +1,23 @@
 'use client';
 
-import { useEffect, useCallback, useRef } from 'react';
+import { useEffect, useCallback, useRef, useState } from 'react';
 import { usePathname, useRouter } from 'next/navigation';
+import { fetchWithAuth } from '../lib/fetchWithAuth';
 
 interface NavItem {
   key: string;
   label: string;
   href: string;
   icon: React.ReactNode;
+}
+
+interface ProjectResponse {
+  id: number;
+  name: string;
+}
+
+interface ProjectListData {
+  projects: ProjectResponse[];
 }
 
 function resolveActive(pathname: string): string {
@@ -34,6 +44,7 @@ export default function ProjectNav({ projectId }: { projectId: string }) {
   const router = useRouter();
   const active = resolveActive(pathname);
   const prevPathRef = useRef(pathname);
+  const [projectName, setProjectName] = useState('');
 
   // pathname 변경 시 Tailwind CDN 재스캔
   useEffect(() => {
@@ -42,6 +53,31 @@ export default function ProjectNav({ projectId }: { projectId: string }) {
       requestAnimationFrame(() => retriggerTailwind());
     }
   }, [pathname]);
+
+  useEffect(() => {
+    let active = true;
+
+    const loadProjectName = async () => {
+      try {
+        const res = await fetchWithAuth('/projects');
+        if (!res.ok) return;
+
+        const data: ProjectListData = await res.json();
+        const currentProject = data.projects.find((project) => String(project.id) === projectId);
+        if (active && currentProject?.name) {
+          setProjectName(currentProject.name);
+        }
+      } catch {
+        // Ignore fetch errors and keep fallback text.
+      }
+    };
+
+    loadProjectName();
+
+    return () => {
+      active = false;
+    };
+  }, [projectId]);
 
   const handleTabClick = useCallback(
     (e: React.MouseEvent<HTMLAnchorElement>, href: string) => {
@@ -134,7 +170,7 @@ export default function ProjectNav({ projectId }: { projectId: string }) {
         <div className="flex items-center gap-1.5 text-sm text-slate-400">
           <button onClick={() => router.push('/projects')} className="hover:text-indigo-600 transition-colors">Projects</button>
           <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 5l7 7-7 7" /></svg>
-          <span className="text-slate-600 font-medium">Project #{projectId}</span>
+          <span className="text-slate-700 text-base font-semibold">{projectName || 'Project'}</span>
         </div>
       </div>
 
