@@ -41,6 +41,49 @@ const modalContentClass = (open: boolean) =>
     open ? 'scale-100 opacity-100' : 'scale-95 opacity-0'
   ].join(' ');
 
+function decodeJwtPayload(token: string): Record<string, unknown> | null {
+  const tokenParts = token.split('.');
+  if (tokenParts.length < 2) return null;
+
+  try {
+    const base64 = tokenParts[1].replace(/-/g, '+').replace(/_/g, '/');
+    const padded = base64.padEnd(Math.ceil(base64.length / 4) * 4, '=');
+    const decoded = atob(padded);
+    const utf8 = decodeURIComponent(
+      Array.from(decoded)
+        .map((char) => `%${char.charCodeAt(0).toString(16).padStart(2, '0')}`)
+        .join(''),
+    );
+    return JSON.parse(utf8) as Record<string, unknown>;
+  } catch {
+    return null;
+  }
+}
+
+function resolveNicknameFromToken(token: string | null): string {
+  if (!token) return '';
+
+  let normalizedToken = token;
+  try {
+    normalizedToken = decodeURIComponent(token);
+  } catch {
+    // Keep raw token if it is not URI-encoded.
+  }
+
+  const payload = decodeJwtPayload(normalizedToken);
+  if (!payload) return '';
+
+  const nicknameKeys = ['nickname', 'nickName', 'name', 'preferred_username', 'email'];
+  for (const key of nicknameKeys) {
+    const value = payload[key];
+    if (typeof value === 'string' && value.trim()) {
+      return value.trim();
+    }
+  }
+
+  return '';
+}
+
 export default function HomePage() {
   return (
     <Suspense>
@@ -59,6 +102,7 @@ function HomePageContent() {
   const [isReady, setIsReady] = useState(false);
   const [isLoggedIn, setIsLoggedIn] = useState(false);
   const [showProfileMenu, setShowProfileMenu] = useState(false);
+  const [nickname, setNickname] = useState('');
 
   useEffect(() => {
     setMounted(true);
@@ -89,8 +133,10 @@ function HomePageContent() {
     }
 
     // 로그인 상태 확인
-    const hasAccessToken = cookies.some((entry) => entry.startsWith('prism_access_token='));
+    const accessTokenCookie = cookies.find((entry) => entry.startsWith('prism_access_token='));
+    const hasAccessToken = Boolean(accessTokenCookie);
     setIsLoggedIn(hasAccessToken);
+    setNickname(resolveNicknameFromToken(accessTokenCookie?.split('=').slice(1).join('=') ?? null));
 
     // setTimeout을 사용하여 CSS 로딩 및 렌더링 안정화 시간을 확실히 확보
     // 100ms 지연 후 화면 표시 (사용자는 거의 느끼지 못하지만 FOUC 방지에 효과적)
@@ -170,6 +216,7 @@ function HomePageContent() {
   const handleLogout = useCallback(() => {
     document.cookie = 'prism_access_token=; path=/; max-age=0';
     setIsLoggedIn(false);
+    setNickname('');
     setShowProfileMenu(false);
     window.location.reload();
   }, []);
@@ -246,6 +293,10 @@ function HomePageContent() {
             </button>
             {showProfileMenu && (
               <div className="absolute right-0 mt-2 w-48 bg-white rounded-lg shadow-xl border border-slate-200 py-1 z-50">
+                <div className="px-4 py-2 border-b border-slate-100">
+                  <p className="text-xs text-slate-400">회원</p>
+                  <p className="text-sm font-semibold text-slate-700 truncate">{nickname || '사용자'}</p>
+                </div>
                 <a
                   href="/projects"
                   className="block px-4 py-2 text-sm text-slate-700 hover:bg-indigo-50 transition-colors"

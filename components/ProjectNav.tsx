@@ -35,7 +35,6 @@ function resolveActive(pathname: string): string {
   if (pathname.includes('/statistics/authors')) return 'authors';
   if (pathname.includes('/statistics/reviewers')) return 'reviewers';
   if (pathname.includes('/statistics/labels')) return 'labels';
-  if (pathname.includes('/statistics/trends')) return 'trends';
   return 'pull-requests';
 }
 
@@ -222,16 +221,6 @@ export default function ProjectNav({ projectId }: { projectId: string }) {
           </svg>
         ),
       },
-      {
-        key: 'trends',
-        label: 'Trend Stats',
-        href: `/projects/${projectId}/statistics/trends`,
-        icon: (
-          <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M7 12l3-3 3 3 4-4M8 21l4-4 4 4M3 4h18M4 4h16v12a1 1 0 01-1 1H5a1 1 0 01-1-1V4z" />
-          </svg>
-        ),
-      },
     ],
     [projectId],
   );
@@ -273,7 +262,7 @@ export default function ProjectNav({ projectId }: { projectId: string }) {
       {/* Tab Navigation */}
       <div className="w-full max-w-7xl mx-auto px-6 pb-4">
         <div className="bg-white/60 backdrop-blur-sm rounded-xl p-1.5 border border-slate-200/80 shadow-sm">
-          <div className="flex items-center gap-1.5">
+          <div className="flex items-center gap-2">
             <button
               type="button"
               onClick={() => setPage((prev) => Math.max(prev - 1, 0))}
@@ -290,7 +279,7 @@ export default function ProjectNav({ projectId }: { projectId: string }) {
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M15 19l-7-7 7-7" />
               </svg>
             </button>
-            <div className="flex gap-1 flex-1 min-w-0">
+            <div className="grid grid-flow-col auto-cols-fr gap-2 flex-1 min-w-0">
               {pagedItems.map((item) => {
                 const isActive = item.key === active;
                 return (
@@ -300,7 +289,7 @@ export default function ProjectNav({ projectId }: { projectId: string }) {
                     onClick={(e) => handleTabClick(e, item.href)}
                     aria-current={isActive ? 'page' : undefined}
                     className={[
-                      'flex items-center justify-center gap-1.5 sm:gap-2 px-2.5 sm:px-3 py-2.5 rounded-lg text-xs sm:text-sm font-medium transition-all duration-200 min-w-0 flex-1',
+                      'flex items-center justify-center gap-1.5 sm:gap-2 px-2.5 sm:px-3 py-2.5 rounded-lg text-xs sm:text-sm font-medium transition-all duration-200 min-w-0',
                       isActive
                         ? 'bg-indigo-600 text-white shadow-md shadow-indigo-200'
                         : 'text-slate-500 hover:text-slate-800 hover:bg-white/80',
