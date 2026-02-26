@@ -178,7 +178,7 @@ export default function ProjectList() {
                 return (
                   <div
                     key={project.id}
-                    onClick={() => router.push(`/projects/${project.id}/pull-requests`)}
+                    onClick={() => router.push(`/projects/${project.id}/statistics/summary`)}
                     className={`bg-white rounded-2xl border ${color.border} p-6 transition-all duration-300 hover:-translate-y-0.5 hover:shadow-lg relative group block cursor-pointer`}
                   >
                     <div className="flex justify-between items-start mb-4">

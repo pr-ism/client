@@ -47,6 +47,26 @@ const PRELOAD_CLASSES = [
   'bg-teal-100 text-teal-600',
   'w-0.5 w-px bg-slate-200 border-slate-200/80',
   'bg-indigo-50/60 hover:bg-indigo-50/60',
+  // SummaryStatistics에서 쓰는 클래스
+  'lg:col-span-2 lg:grid-cols-5 md:divide-y-0 md:divide-x divide-x text-amber-500 text-amber-900 text-emerald-500 text-emerald-900 text-sky-600',
+  'bg-amber-400 bg-emerald-400 bg-rose-400 bg-sky-400 h-1.5 h-12 rounded-sm shadow-inner cursor-help',
+  'text-2xl text-[10px] md:pt-0 md:px-6 first:px-0 first:pt-0',
+  // CollaborationStatistics에서 쓰는 클래스
+  'bg-rose-50 text-rose-500',
+  'w-28',
+  // LifecycleStatistics에서 쓰는 클래스
+  'text-rose-700 text-amber-700 text-emerald-700 border-rose-200 border-amber-200 border-emerald-200',
+  'opacity-80',
+  // PullRequestSizeStatistics에서 쓰는 클래스
+  'left-1/2 right-1/2 top-0 bottom-0 border-slate-200/50 text-teal-400 text-sky-400',
+  // ReviewQualityStatistics에서 쓰는 클래스
+  'lg:col-span-1 text-4xl font-black h-2 bg-teal-400 cursor-help',
+  // ReviewSpeedStatistics에서 쓰는 클래스
+  'text-sky-500 h-2 space-y-4',
+  // ThroughputStatistics에서 쓰는 클래스
+  'h-3 hover:border-slate-300 leading-5',
+  // WeeklyTrendStatistics에서 쓰는 클래스
+  'bg-emerald-500 bg-slate-300 text-[10px] h-2 w-2',
   // ProjectList에서 쓰는 클래스
   'border-indigo-50 border-sky-50 border-emerald-50 border-amber-50 border-rose-50 border-violet-50',
   'bg-indigo-100 bg-sky-100 bg-emerald-100 bg-amber-100 bg-rose-100 bg-violet-100',
