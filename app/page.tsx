@@ -3,6 +3,7 @@
 import { Suspense, useCallback, useEffect, useState } from 'react';
 import { useSearchParams } from 'next/navigation';
 import SetupFlow from '../components/SetupFlow';
+import { fetchWithAuth } from '../lib/fetchWithAuth';
 
 const featureItems = [
   {
@@ -84,6 +85,10 @@ function resolveNicknameFromToken(token: string | null): string {
   return '';
 }
 
+type UserInfoResponse = {
+  nickname?: string;
+};
+
 export default function HomePage() {
   return (
     <Suspense>
@@ -123,6 +128,8 @@ function HomePageContent() {
   }, [searchParams]);
 
   useEffect(() => {
+    let active = true;
+
     // 쿠키 체크 및 초기화 로직
     const cookies = document.cookie.split(';').map((entry) => entry.trim());
 
@@ -136,7 +143,33 @@ function HomePageContent() {
     const accessTokenCookie = cookies.find((entry) => entry.startsWith('prism_access_token='));
     const hasAccessToken = Boolean(accessTokenCookie);
     setIsLoggedIn(hasAccessToken);
-    setNickname(resolveNicknameFromToken(accessTokenCookie?.split('=').slice(1).join('=') ?? null));
+    const token = accessTokenCookie?.split('=').slice(1).join('=') ?? null;
+    setNickname(resolveNicknameFromToken(token));
+
+    const syncNickname = async () => {
+      if (!hasAccessToken) {
+        return;
+      }
+
+      try {
+        const response = await fetchWithAuth('/users/me');
+        if (!response.ok) {
+          return;
+        }
+
+        const body = (await response.json()) as UserInfoResponse;
+        const resolvedNickname = typeof body.nickname === 'string' ? body.nickname.trim() : '';
+        if (active) {
+          setNickname(resolvedNickname);
+        }
+      } catch {
+        if (active) {
+          setNickname('');
+        }
+      }
+    };
+
+    void syncNickname();
 
     // setTimeout을 사용하여 CSS 로딩 및 렌더링 안정화 시간을 확실히 확보
     // 100ms 지연 후 화면 표시 (사용자는 거의 느끼지 못하지만 FOUC 방지에 효과적)
@@ -144,7 +177,10 @@ function HomePageContent() {
       setIsReady(true);
     }, 100);
 
-    return () => clearTimeout(timer);
+    return () => {
+      active = false;
+      clearTimeout(timer);
+    };
   }, []);
 
   const openModal = useCallback(() => setModalOpen(true), []);
