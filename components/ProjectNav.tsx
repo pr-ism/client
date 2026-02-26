@@ -329,27 +329,6 @@ export default function ProjectNav({ projectId }: { projectId: string }) {
               </svg>
             </button>
           </div>
-          {totalPages > 1 && (
-            <div className="mt-2 flex items-center justify-center gap-1.5">
-              {Array.from({ length: totalPages }).map((_, index) => (
-                <button
-                  key={index}
-                  type="button"
-                  onClick={() => setPage(index)}
-                  aria-label={`Go to page ${index + 1}`}
-                  className={[
-                    'w-2.5 h-2.5 rounded-full transition-colors',
-                    index === page ? 'bg-indigo-600' : 'bg-slate-300 hover:bg-slate-400',
-                  ].join(' ')}
-                />
-              ))}
-            </div>
-          )}
-          {totalPages > 1 && (
-            <div className="mt-1 text-center text-[11px] text-slate-400">
-              Page {page + 1} / {totalPages}
-            </div>
-          )}
         </div>
       </div>
     </div>
