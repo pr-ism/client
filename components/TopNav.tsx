@@ -2,10 +2,16 @@
 
 import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
+import { fetchWithAuth } from '../lib/fetchWithAuth';
+
+type UserInfoResponse = {
+  nickname?: string;
+};
 
 export default function TopNav() {
   const router = useRouter();
   const [userDropdownOpen, setUserDropdownOpen] = useState(false);
+  const [nickname, setNickname] = useState('');
 
   useEffect(() => {
     const handleClick = (e: MouseEvent) => {
@@ -18,10 +24,41 @@ export default function TopNav() {
     return () => document.removeEventListener('click', handleClick);
   }, []);
 
+  useEffect(() => {
+    let active = true;
+
+    const loadUserInfo = async () => {
+      try {
+        const response = await fetchWithAuth('/users/me');
+        if (!response.ok) {
+          return;
+        }
+
+        const body = (await response.json()) as UserInfoResponse;
+        const resolvedNickname = typeof body.nickname === 'string' ? body.nickname.trim() : '';
+        if (active) {
+          setNickname(resolvedNickname);
+        }
+      } catch {
+        if (active) {
+          setNickname('');
+        }
+      }
+    };
+
+    loadUserInfo();
+
+    return () => {
+      active = false;
+    };
+  }, []);
+
   const handleLogout = () => {
     document.cookie = 'prism_access_token=; path=/; max-age=0';
     window.location.href = '/';
   };
+
+  const avatarLabel = nickname ? nickname.charAt(0).toUpperCase() : 'U';
 
   return (
     <nav className="w-full px-8 py-5 flex justify-between items-center max-w-7xl mx-auto">
@@ -41,10 +78,14 @@ export default function TopNav() {
             onClick={() => setUserDropdownOpen(!userDropdownOpen)}
             className="w-8 h-8 rounded-full bg-indigo-100 text-indigo-600 flex items-center justify-center font-bold text-sm border border-indigo-200 hover:bg-indigo-200 transition-colors focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500"
           >
-            U
+            {avatarLabel}
           </button>
           {userDropdownOpen && (
             <div className="absolute right-0 mt-2 w-48 bg-white rounded-xl shadow-xl border border-slate-100 py-2 origin-top-right z-50">
+              <div className="px-4 py-2 border-b border-slate-100">
+                <p className="text-xs text-slate-400">회원</p>
+                <p className="text-sm font-semibold text-slate-700 truncate">{nickname || '사용자'}</p>
+              </div>
               <a
                 href="#"
                 onClick={(e) => { e.preventDefault(); handleLogout(); }}
