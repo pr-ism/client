@@ -103,6 +103,7 @@ function HomePageContent() {
   const [isMounted, setMounted] = useState(false);
   const [showSetup, setShowSetup] = useState(false);
   const [sessionExpiredToast, setSessionExpiredToast] = useState(false);
+  const [loginErrorToast, setLoginErrorToast] = useState<string | null>(null);
   // 초기값을 false로 설정하여 로딩 전에는 무조건 숨김
   const [isReady, setIsReady] = useState(false);
   const [isLoggedIn, setIsLoggedIn] = useState(false);
@@ -124,6 +125,16 @@ function HomePageContent() {
       window.history.replaceState({}, '', '/');
       const toastTimer = setTimeout(() => setSessionExpiredToast(false), 5000);
       return () => clearTimeout(toastTimer);
+    }
+
+    // 로그인 실패 토스트
+    const loginError = searchParams.get('login_error');
+    if (loginError) {
+      setLoginErrorToast(loginError);
+      setModalOpen(true);
+      window.history.replaceState({}, '', '/');
+      const errorTimer = setTimeout(() => setLoginErrorToast(null), 5000);
+      return () => clearTimeout(errorTimer);
     }
   }, [searchParams]);
 
@@ -244,7 +255,7 @@ function HomePageContent() {
     }
   }, [openModal]);
 
-  const handleSocialLogin = useCallback((provider: 'kakao' | 'google') => {
+  const handleSocialLogin = useCallback((provider: 'kakao' | 'google' | 'github') => {
     const url = `/oauth2/authorization/${provider}`;
     window.location.href = url;
   }, []);
@@ -578,6 +589,16 @@ function HomePageContent() {
               </svg>
               카카오 아이디로 로그인
             </button>
+            <button
+              type="button"
+              onClick={() => handleSocialLogin('github')}
+              className="w-full bg-[#24292F] hover:bg-[#1B1F23] text-white font-medium py-3 px-4 rounded-xl flex items-center justify-center gap-3 transition-colors shadow-sm group"
+            >
+              <svg className="w-5 h-5 group-hover:scale-110 transition-transform" viewBox="0 0 24 24" fill="currentColor">
+                <path d="M12 2C6.477 2 2 6.484 2 12.017c0 4.425 2.865 8.18 6.839 9.504.5.092.682-.217.682-.483 0-.237-.008-.868-.013-1.703-2.782.605-3.369-1.343-3.369-1.343-.454-1.158-1.11-1.466-1.11-1.466-.908-.62.069-.608.069-.608 1.003.07 1.531 1.032 1.531 1.032.892 1.53 2.341 1.088 2.91.832.092-.647.35-1.088.636-1.338-2.22-.253-4.555-1.113-4.555-4.951 0-1.093.39-1.988 1.029-2.688-.103-.253-.446-1.272.098-2.65 0 0 .84-.27 2.75 1.026A9.564 9.564 0 0112 6.844c.85.004 1.705.115 2.504.337 1.909-1.296 2.747-1.027 2.747-1.027.546 1.379.202 2.398.1 2.651.64.7 1.028 1.595 1.028 2.688 0 3.848-2.339 4.695-4.566 4.943.359.309.678.92.678 1.855 0 1.338-.012 2.419-.012 2.747 0 .268.18.58.688.482A10.019 10.019 0 0022 12.017C22 6.484 17.522 2 12 2z" />
+              </svg>
+              GitHub 아이디로 로그인
+            </button>
           </div>
         </div>
       </div>
@@ -591,10 +612,10 @@ function HomePageContent() {
       {/* Session Expired Toast */}
       <div
         className={[
-          'fixed bottom-6 right-6 z-50 flex items-center gap-3 bg-white border border-rose-200 shadow-lg rounded-xl px-5 py-4 transition-all duration-300',
+          'fixed top-6 right-6 z-50 flex items-center gap-3 bg-white border border-rose-200 shadow-lg rounded-xl px-5 py-4 transition-all duration-300',
           sessionExpiredToast
             ? 'opacity-100 translate-y-0'
-            : 'opacity-0 translate-y-4 pointer-events-none',
+            : 'opacity-0 -translate-y-4 pointer-events-none',
         ].join(' ')}
       >
         <div className="w-8 h-8 bg-rose-100 rounded-full flex items-center justify-center flex-shrink-0">
@@ -608,6 +629,40 @@ function HomePageContent() {
         </div>
         <button
           onClick={() => setSessionExpiredToast(false)}
+          className="ml-2 text-slate-400 hover:text-slate-600 transition-colors"
+        >
+          <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M6 18L18 6M6 6l12 12" />
+          </svg>
+        </button>
+      </div>
+
+      {/* Login Error Toast */}
+      <div
+        className={[
+          'fixed top-6 right-6 z-50 flex items-center gap-3 bg-white border border-amber-200 shadow-lg rounded-xl px-5 py-4 transition-all duration-300',
+          loginErrorToast
+            ? 'opacity-100 translate-y-0'
+            : 'opacity-0 -translate-y-4 pointer-events-none',
+        ].join(' ')}
+      >
+        <div className="w-8 h-8 bg-amber-100 rounded-full flex items-center justify-center flex-shrink-0">
+          <svg className="w-4 h-4 text-amber-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 9v2m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+          </svg>
+        </div>
+        <div>
+          <p className="text-sm font-semibold text-slate-800">로그인에 실패했습니다</p>
+          <p className="text-xs text-slate-500">
+            {loginErrorToast === 'network'
+              ? '서버에 연결할 수 없습니다. 잠시 후 다시 시도해주세요.'
+              : loginErrorToast === 'unsupported_provider'
+                ? '지원하지 않는 로그인 방식입니다.'
+                : '일시적인 오류가 발생했습니다. 다시 시도해주세요.'}
+          </p>
+        </div>
+        <button
+          onClick={() => setLoginErrorToast(null)}
           className="ml-2 text-slate-400 hover:text-slate-600 transition-colors"
         >
           <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">

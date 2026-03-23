@@ -7,12 +7,7 @@ const nextConfig = {
   reactStrictMode: true,
   swcMinify: true,
   async rewrites() {
-    const rules = [
-      {
-        source: '/oauth2/authorization/:provider*',
-        destination: `${statsServerUrl}/oauth2/authorization/:provider*`
-      }
-    ];
+    const rules = [];
 
     if (slackBotProxyUrl) {
       rules.push({

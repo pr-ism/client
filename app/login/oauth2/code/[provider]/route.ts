@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 
-const VALID_PROVIDERS = ['kakao', 'google'] as const;
+const VALID_PROVIDERS = ['kakao', 'google', 'github'] as const;
 const BACKEND_INFO = process.env.NEXT_PUBLIC_STATS_SERVER_URL ?? 'http://localhost:8081';
 const SETUP_PATH = process.env.NEXT_PUBLIC_SETUP_PATH ?? '/setup';
 
@@ -41,24 +41,27 @@ export async function GET(
   const { provider } = params;
 
   if (!VALID_PROVIDERS.includes(provider as any)) {
-    return NextResponse.json({ message: '지원하지 않는 인증 제공자입니다.' }, { status: 400 });
+    const errorUrl = new URL('/?login_error=unsupported_provider', req.url);
+    return NextResponse.redirect(errorUrl);
   }
 
   const backendUrl = buildBackendUrl(provider, req.nextUrl.search);
 
-  const backendResponse = await fetch(backendUrl.toString(), {
-    method: 'GET',
-    headers: forwardHeaders(req),
-    redirect: 'manual'
-  });
+  let backendResponse: Response;
+  try {
+    backendResponse = await fetch(backendUrl.toString(), {
+      method: 'GET',
+      headers: forwardHeaders(req),
+      redirect: 'manual'
+    });
+  } catch {
+    const errorUrl = new URL('/?login_error=network', req.url);
+    return NextResponse.redirect(errorUrl);
+  }
 
   if (!backendResponse.ok) {
-    const contentType = backendResponse.headers.get('content-type') ?? 'text/plain';
-    const body = await backendResponse.text();
-    return new NextResponse(body, {
-      status: backendResponse.status,
-      headers: { 'Content-Type': contentType }
-    });
+    const errorUrl = new URL('/?login_error=server', req.url);
+    return NextResponse.redirect(errorUrl);
   }
 
   const bodyText = await backendResponse.text();
